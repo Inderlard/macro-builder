@@ -25,6 +25,15 @@ resolve_cfg_path() {
     printf '%s/%s\n' "${CFG_BASE}" "$p"
   fi
 }
+
+# Make an ALL-CAPS safe tag from an alias ("Fang 1" -> "FANG_1")
+alias_tag() {
+  local a="$1"
+  a="${a//[^A-Za-z0-9]/_}"
+  printf '%s\n' "${a^^}"
+}
+
+
 print_can_cmd() { # mode uuid bin label
   local mode="$1" uuid="$2" bin="$3" label="$4"
   if [[ "$mode" == "gcode_shell" ]]; then
@@ -167,8 +176,10 @@ for s in "${SECTIONS[@]}"; do
         key="$(echo "$a" | tr '[:upper:]' '[:lower:]')"
         uuid="${CAN_BY_ALIAS[$key]:-}"
         if [[ -n "$uuid" ]]; then
+          # Found UUID -> normal command
           print_can_cmd "$mode" "$uuid" "$outfile" "$a"
         else
+          # Not found -> show placeholder with ALIAS-based tag
           echo "#   alias '${a}': UUID not found in printer.cfg"
           TAG="$(alias_tag "${a}")"
           if [[ "$mode" == "gcode_shell" ]]; then
@@ -185,18 +196,27 @@ for s in "${SECTIONS[@]}"; do
       mode_label="$([ "$mode" = "gcode_shell" ] && echo "GCODE" || echo "SSH")"
       echo "# [${name}] via USB (Katapult, ${mode_label}):"
       ((${#aliases[@]}==0)) && echo "#   (Define 'mcu_alias: main' or the exact alias)"
+      # Pick preferred USB flasher (flash_usb.py) and fallback to flashtool.py if not present
+      USB_FLASHER="python3 ${HOME}/katapult/scripts/flash_usb.py"
+      [[ -f "${HOME}/katapult/scripts/flash_usb.py" ]] || USB_FLASHER="python3 ${HOME}/katapult/scripts/flashtool.py"
       for a in "${aliases[@]:-}"; do
         key="$(echo "$a" | tr '[:upper:]' '[:lower:]')"
         dev="${USB_BY_ALIAS[$key]:-}"
         if [[ -n "$dev" ]]; then
-          print_usb_cmd "$mode" "$dev" "$outfile" "$a"
+          # Found serial -> normal command
+          if [[ "$mode" == "gcode_shell" ]]; then
+            echo "RUN_SHELL_COMMAND CMD=FLASH_USB PARAMS=\"-d ${dev} -f ${outfile}\"    # ${a}"
+          else
+            echo "${USB_FLASHER} -d ${dev} -f ${outfile}    # ${a}"
+          fi
         else
+          # Not found -> show placeholder with ALIAS-based tag
           echo "#   alias '${a}': serial not found in printer.cfg"
           TAG="$(alias_tag "${a}")"
           if [[ "$mode" == "gcode_shell" ]]; then
             echo "RUN_SHELL_COMMAND CMD=FLASH_USB PARAMS=\"-d /dev/serial/by-id/<${TAG}_SERIAL> -f ${outfile}\"    # ${a}"
           else
-            echo "python3 ${HOME}/katapult/scripts/flashtool.py -d /dev/serial/by-id/<${TAG}_SERIAL> -f ${outfile}    # ${a}"
+            echo "${USB_FLASHER} -d /dev/serial/by-id/<${TAG}_SERIAL> -f ${outfile}    # ${a}"
           fi
         fi
       done
