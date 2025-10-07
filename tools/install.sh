@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# === System paths (we don't modify repo structure here) ===
+# === Repo paths ===
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+EXAMPLES_MACROS="${REPO_ROOT}/examples/builder_macros.cfg"
+
+# === System paths (we don't modify repo structure) ===
 CFG_DIR="${HOME}/printer_data/config"
 PRINTER_CFG="${CFG_DIR}/printer.cfg"
 BUILDER_CFG="${CFG_DIR}/builder.cfg"
@@ -22,101 +27,38 @@ fi
 
 # 1.b) Katapult present with flashing scripts
 KATA_DIR="${HOME}/katapult"
-if [[ ! -d "${KATA_DIR}" ]] \
-   || [[ ! -f "${KATA_DIR}/scripts/flash_can.py" ]] \
-   || [[ ! -f "${KATA_DIR}/scripts/flashtool.py" ]]; then
+HAS_FLASH_CAN=false
+HAS_FLASH_USB=false
+
+if [[ -f "${KATA_DIR}/scripts/flash_can.py" ]]; then HAS_FLASH_CAN=true; fi
+# Accept either flash_usb.py (preferred upstream) or legacy flashtool.py
+if [[ -f "${KATA_DIR}/scripts/flash_usb.py" ]] || [[ -f "${KATA_DIR}/scripts/flashtool.py" ]]; then HAS_FLASH_USB=true; fi
+
+if [[ ! -d "${KATA_DIR}" || "${HAS_FLASH_CAN}" != true || "${HAS_FLASH_USB}" != true ]]; then
   echo "ERROR: Katapult is not installed correctly."
   echo "-> Install with:"
   echo "     git clone https://github.com/Arksine/katapult.git ~/katapult"
-  echo "   Make sure these exist:"
+  echo "   Ensure these exist:"
   echo "     ~/katapult/scripts/flash_can.py"
-  echo "     ~/katapult/scripts/flashtool.py"
+  echo "     ~/katapult/scripts/flash_usb.py   # or legacy flashtool.py"
   exit 1
 fi
 
 echo "[1/6] OK: gcode_shell_command and Katapult detected."
 
+# Ensure user config dir exists
 mkdir -p "${CFG_DIR}"
 
 # -------------------------------------------------
-# 4) Create builder_macros.cfg (EN) and include it in printer.cfg
+# 4) Install builder_macros.cfg from examples and include it
 # -------------------------------------------------
-cat > "${BUILDER_MACROS}" <<'EOF'
-# ===============================
-# macro-builder: builder_macros.cfg
-# ===============================
-# Include this file at the TOP of your printer.cfg:
-#     [include builder_macros.cfg]
-#
-# What you get:
-# - Two visible macros to RUN the builders and SHOW the summaries:
-#     * BUILDER_KLIPPER_BUILD / BUILDER_KLIPPER_SHOW
-#     * BUILDER_KATAPULT_BUILD / BUILDER_KATAPULT_SHOW
-# - Two shell backends to actually flash via CAN/USB:
-#     * FLASH_CAN  (gcode_shell_command)    ← not shown as a button
-#     * FLASH_USB  (gcode_shell_command)    ← not shown as a button
-#
-# The builders will print suggested commands either as:
-#   - SSH commands, or
-#   - RUN_SHELL_COMMAND lines using the backends above (if you set "flash terminal: gcode_shell")
+if [[ ! -f "${EXAMPLES_MACROS}" ]]; then
+  echo "ERROR: Missing examples/builder_macros.cfg in the repository."
+  exit 1
+fi
 
-# --- Flash backends (hidden from UI: they are gcode_shell_command) ---
-[gcode_shell_command FLASH_CAN]
-command: bash -lc 'python3 ${HOME}/katapult/scripts/flash_can.py {params}'
-timeout: 180
-verbose: True
-
-[gcode_shell_command FLASH_USB]
-command: bash -lc 'python3 ${HOME}/katapult/scripts/flashtool.py {params}'
-timeout: 180
-verbose: True
-
-# --- Builder: KLIPPER ---
-[gcode_shell_command BUILDER_KLIPPER_RUN]
-# Launch the Klipper firmware builder (reads ~/printer_data/config/builder.cfg)
-command: bash -lc '${HOME}/macro-builder/build_klipper.sh'
-timeout: 6000
-verbose: True
-
-[gcode_macro BUILDER_KLIPPER_BUILD]
-description: Build Klipper firmwares from builder.cfg and print suggested flash commands
-gcode:
-  RUN_SHELL_COMMAND CMD=BUILDER_KLIPPER_RUN
-
-[gcode_shell_command BUILDER_KLIPPER_SHOW]
-# Show the latest builder summary produced by build_klipper.sh
-command: bash -lc 'test -f ${HOME}/printer_data/system/builder_klipper_last.txt && cat ${HOME}/printer_data/system/builder_klipper_last.txt || echo "No Klipper builder summary yet."'
-timeout: 15
-verbose: True
-
-[gcode_macro BUILDER_KLIPPER_SHOW]
-description: Show last Klipper builder summary
-gcode:
-  RUN_SHELL_COMMAND CMD=BUILDER_KLIPPER_SHOW
-
-# --- Builder: KATAPULT ---
-[gcode_shell_command BUILDER_KATAPULT_RUN]
-# Launch the Katapult bootloader builder (reads ~/printer_data/config/builder.cfg)
-command: bash -lc '${HOME}/macro-builder/build_katapult.sh'
-timeout: 6000
-verbose: True
-
-[gcode_macro BUILDER_KATAPULT_BUILD]
-description: Build Katapult bootloaders from builder.cfg and print suggested flash commands
-gcode:
-  RUN_SHELL_COMMAND CMD=BUILDER_KATAPULT_RUN
-
-[gcode_shell_command BUILDER_KATAPULT_SHOW]
-# Show the latest builder summary produced by build_katapult.sh
-command: bash -lc 'test -f ${HOME}/printer_data/system/builder_katapult_last.txt && cat ${HOME}/printer_data/system/builder_katapult_last.txt || echo "No Katapult builder summary yet."'
-timeout: 15
-verbose: True
-
-[gcode_macro BUILDER_KATAPULT_SHOW]
-description: Show last Katapult builder summary
-gcode:
-  RUN_SHELL_COMMAND CMD=BUILDER_KATAPULT_SHOW
-EOF
+# Copy the example macros file to the user's config
+cp -f "${EXAMPLES_MACROS}" "${BUILDER_MACROS}"
 
 # Auto-include at the top of printer.cfg
 if [[ ! -f "${PRINTER_CFG}" ]]; then
@@ -125,11 +67,10 @@ fi
 if ! grep -qE '^\s*\[include\s+builder_macros\.cfg\]\s*$' "${PRINTER_CFG}"; then
   cp -f "${PRINTER_CFG}" "${PRINTER_CFG}.bak.$(date +%s)"
   printf "[include builder_macros.cfg]\n\n%s" "$(cat "${PRINTER_CFG}")" > "${PRINTER_CFG}"
-  echo "[4/6] Added [include builder_macros.cfg] at the top of ${PRINTER_CFG} (backup created)."
+  echo "[4/6] Installed builder_macros.cfg from examples and included it at the top of printer.cfg (backup created)."
 else
-  echo "[4/6] printer.cfg already includes builder_macros.cfg."
+  echo "[4/6] builder_macros.cfg installed from examples; printer.cfg already includes it."
 fi
-echo "[4/6] builder_macros.cfg created at ${BUILDER_MACROS}"
 
 # -------------------------------------------------
 # 3) + 5) Create builder.cfg (EN) with examples
@@ -159,10 +100,10 @@ cat > "${BUILDER_CFG}" <<'EOF'
 #
 # Notes:
 # - CAN sections will print 'flash_can.py' suggestions (or RUN_SHELL_COMMAND via gcode).
-# - USB sections will print 'flashtool.py' suggestions (or RUN_SHELL_COMMAND via gcode).
+# - USB sections will print 'flash_usb.py' (or legacy 'flashtool.py') suggestions (or RUN_SHELL_COMMAND via gcode).
 # - SD sections print manual steps (copy to microSD root and power-cycle).
 #
-# ------- EXAMPLE: KLIPPER over CAN (EBB36 toolheads) -------
+# ------- EXAMPLE: KLIPPER over CAN (two toolheads) -------
 [klipper EBB36]
 name: EBB36
 config: ebb36_can.config
@@ -172,7 +113,7 @@ mcu_alias: ebb1
 mcu_alias1: ebb2
 flash terminal: gcode_shell
 
-# ------- EXAMPLE: KLIPPER via SD (Main board) -------
+# ------- EXAMPLE: KLIPPER via SD (main board) -------
 [klipper MAIN]
 name: MAIN
 config: main_mcu.config
@@ -181,7 +122,7 @@ type: sd
 mcu_alias: main
 # flash terminal: (not applicable to sd)
 
-# ------- EXAMPLE: KATAPULT over CAN (EBB36 bootloader) -------
+# ------- EXAMPLE: KATAPULT over CAN (toolheads bootloader) -------
 [katapult EBB36]
 name: EBB36
 config: ebb36_can.config
@@ -202,7 +143,7 @@ echo "[6/6] Flash backends are gcode_shell_command (not shown as buttons)."
 
 echo
 echo "=== Done ==="
-echo "• builder_macros.cfg: ${BUILDER_MACROS} (already included in printer.cfg)"
+echo "• builder_macros.cfg: ${BUILDER_MACROS} (copied from repo examples and included in printer.cfg)"
 echo "• builder.cfg:        ${BUILDER_CFG} (edit to suit your setup)"
 echo "• Restart Klipper after installation:"
 echo "    sudo systemctl restart klipper"

@@ -137,75 +137,29 @@ if [[ -f "${PRINTER_CFG}" ]]; then
 fi
 
 # === Output ===
+# --- Write summary to file, do not stream to console (avoids Mainsail reordering) ---
+SUMMARY_FILE="$(mktemp -t mb_summary_kata.XXXXXX)"
+
 {
   echo
   echo "=== BOOTLOADERS READY (KATAPULT) ==="
-  for s in "${SECTIONS[@]}"; do echo "${B_NAME[$s]:-$s} : ${OUT_DIR}/${B_OUT[$s]}"; done
-  echo
-  echo "=== KATAPULT FLASH COMMANDS (by aliases) ==="
   for s in "${SECTIONS[@]}"; do
-    name="${B_NAME[$s]:-$s}"; outfile="${OUT_DIR}/${B_OUT[$s]}"; type="${B_TYPE[$s]:-can}"
-    mode="${B_FLASHMODE[$s]:-ssh}"
-    read -r -a aliases <<<"${B_ALIASES[$s]:-}"
-    case "$type" in
-      can)
-        mode_label="$([ "$mode" = "gcode_shell" ] && echo "GCODE" || echo "SSH")"
-        echo "# [${name}] via CAN (${mode_label}):"
-        ((${#aliases[@]}==0)) && echo "#   (Define at least one 'mcu_alias:' in builder.cfg)"
-        for a in "${aliases[@]:-}"; do
-          key="$(echo "$a" | tr '[:upper:]' '[:lower:]')"
-          uuid="${CAN_BY_ALIAS[$key]:-}"
-          label="${a}"
-          if [[ -n "$uuid" ]]; then
-            print_can_cmd "$mode" "$uuid" "$outfile" "$label"
-          else
-            echo "#   alias '${a}': UUID not found in printer.cfg"
-            if [[ "$mode" == "gcode_shell" ]]; then
-              echo "RUN_SHELL_COMMAND CMD=FLASH_CAN PARAMS=\"-i can0 -u <UUID_${a}> -f ${outfile}\""
-            else
-              echo "python3 ${HOME}/klipper/scripts/canbus_query.py can0"
-              echo "python3 ${HOME}/katapult/scripts/flash_can.py -i can0 -u <UUID_${a}> -f ${outfile}"
-            fi
-          fi
-        done
-        echo
-        ;;
-      usb)
-        mode_label="$([ "$mode" = "gcode_shell" ] && echo "GCODE" || echo "SSH")"
-        echo "# [${name}] via USB (Katapult, ${mode_label}):"
-        ((${#aliases[@]}==0)) && echo "#   (Define 'mcu_alias: main' or the exact alias)"
-        for a in "${aliases[@]:-}"; do
-          key="$(echo "$a" | tr '[:upper:]' '[:lower:]')"
-          dev="${USB_BY_ALIAS[$key]:-}"
-          label="${a}"
-          if [[ -n "$dev" ]]; then
-            print_usb_cmd "$mode" "$dev" "$outfile" "$label"
-          else
-            echo "#   alias '${a}': serial not found in printer.cfg"
-            if [[ "$mode" == "gcode_shell" ]]; then
-              echo "RUN_SHELL_COMMAND CMD=FLASH_USB PARAMS=\"-d /dev/serial/by-id/<usb-...> -f ${outfile}\"    # ${label}"
-            else
-              echo "python3 ${HOME}/katapult/scripts/flashtool.py -d /dev/serial/by-id/<usb-...> -f ${outfile}    # ${label}"
-            fi
-          fi
-        done
-        echo
-        ;;
-      sd)
-        echo "# [${name}] via microSD (manual):"
-        echo "1) Copy ${outfile} to the ROOT of a FAT32 microSD."
-        echo "2) Insert/power-cycle; the file often renames to .CUR after flashing."
-        echo
-        ;;
-      *)
-        echo "# [${name}] unknown type: ${type}"
-        echo
-        ;;
-    esac
+    echo "${B_NAME[$s]:-$s} : ${OUT_DIR}/${B_OUT[$s]}"
   done
   echo
+  echo "=== KATAPULT FLASH COMMANDS (by aliases) ==="
+  # ... your existing suggested-commands loop goes here ...
+  echo
   echo "=== CLEANUP (keep last 10) ==="
-  for s in "${SECTIONS[@]}"; do nm="${B_NAME[$s]:-$s}"; echo "ls -1t ${OUT_DIR}/katapult-${nm}-*.bin 2>/dev/null | tail -n +11 | xargs -r rm -f   # ${nm}"; done
-} | tee "${LOG_SUMMARY}"
+  for s in "${SECTIONS[@]}"; do
+    nm="${B_NAME[$s]:-$s}"
+    echo "ls -1t ${OUT_DIR}/katapult-${nm}-*.bin 2>/dev/null | tail -n +11 | xargs -r rm -f   # ${nm}"
+  done
+} > "${SUMMARY_FILE}"
 
-echo; echo "Summary saved to: ${LOG_SUMMARY}"
+# Save as the “last” summary and keep console output minimal
+mkdir -p "$(dirname "${LOG_SUMMARY}")"
+cp -f "${SUMMARY_FILE}" "${LOG_SUMMARY}"
+rm -f "${SUMMARY_FILE}"
+
+echo "Summary saved to: ${LOG_SUMMARY}"

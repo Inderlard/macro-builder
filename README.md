@@ -17,52 +17,12 @@ Helper toolkit to **build and flash Klipper firmwares and Katapult bootloaders**
   (file: `~/klipper/klippy/extras/gcode_shell_command.py`)
 * **Katapult** repository (for flashing tools and Katapult builds)
   (`~/katapult` with `scripts/flash_can.py` and `scripts/flashtool.py`)
+* **Katapult** repository (for flashing tools and Katapult builds)
 
 > If either dependency is missing, the installer will stop and tell you how to fix it.
 
 ---
 
-## Manual Installation (advanced users)
-
-1. Clone this repo:
-
-```bash
-cd ~
-git clone https://github.com/Inderlard/macro-builder
-```
-
-2. Ensure the scripts are executable:
-
-```bash
-chmod +x ~/macro-builder/build_klipper.sh
-chmod +x ~/macro-builder/build_katapult.sh
-chmod +x ~/macro-builder/tools/new_config_wizard.sh
-chmod +x ~/macro-builder/tools/install.sh
-```
-
-3. Create `~/printer_data/config/builder_macros.cfg` (or run the installer below) with:
-
-* two visible macros:
-  `BUILDER_KLIPPER_BUILD / BUILDER_KLIPPER_SHOW` and
-  `BUILDER_KATAPULT_BUILD / BUILDER_KATAPULT_SHOW`
-* two hidden shell backends (not shown as buttons):
-  `FLASH_CAN` and `FLASH_USB` (type `gcode_shell_command`)
-
-4. Include the macros at the **top** of `~/printer_data/config/printer.cfg`:
-
-```ini
-[include builder_macros.cfg]
-```
-
-5. Create `~/printer_data/config/builder.cfg` (or use the examples further below) describing what to build/flash.
-
-6. Restart Klipper:
-
-```bash
-sudo systemctl restart klipper
-```
-
----
 
 ## Automatic Installation (recommended)
 1. Clone this repo:
@@ -91,6 +51,57 @@ bash ~/macro-builder/tools/install.sh
 
 ```bash
 sudo systemctl restart klipper
+```
+
+---
+
+## Manual Installation (advanced users)
+
+1. Clone this repo:
+
+```bash
+cd ~
+git clone https://github.com/Inderlard/macro-builder
+```
+
+2. Ensure the scripts are executable:
+
+```bash
+chmod +x ~/macro-builder/build_klipper.sh
+chmod +x ~/macro-builder/build_katapult.sh
+chmod +x ~/macro-builder/tools/new_config_wizard.sh
+chmod +x ~/macro-builder/tools/install.sh
+```
+
+3. Create `~/printer_data/config/builder_macros.cfg` with (this configuration)[https://github.com/Inderlard/macro-builder/blob/main/examples/builder_macros.cfg]
+
+> Optionally (recommaned) you can hide these two shell backends (not shown as buttons) in mainsail:
+>   `FLASH_CAN` and `FLASH_USB` (type `gcode_shell_command`)
+
+4. Include the macros at the **top** of `~/printer_data/config/printer.cfg`:
+
+```ini
+[include builder_macros.cfg]
+```
+
+5. Create `~/printer_data/config/builder.cfg` (or use the examples further below) describing what to build/flash.
+
+6. Restart Klipper:
+
+```bash
+sudo systemctl restart klipper
+```
+
+---
+
+## Moonraker update manager
+
+```
+[update_manager macro-builder]
+type: git_repo
+path: ~/macro-builder
+origin: https://github.com/Inderlard/macro-builder
+primary_branch: main
 ```
 
 ---
