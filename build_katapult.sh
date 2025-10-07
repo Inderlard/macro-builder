@@ -25,14 +25,11 @@ resolve_cfg_path() {
     printf '%s/%s\n' "${CFG_BASE}" "$p"
   fi
 }
-
-# Make an ALL-CAPS safe tag from an alias ("Fang 1" -> "FANG_1")
 alias_tag() {
   local a="$1"
   a="${a//[^A-Za-z0-9]/_}"
   printf '%s\n' "${a^^}"
 }
-
 print_can_cmd() { # mode uuid bin label
   local mode="$1" uuid="$2" bin="$3" label="$4"
   if [[ "$mode" == "gcode_shell" ]]; then
@@ -48,13 +45,6 @@ print_usb_cmd() { # mode dev bin label
   else
     echo "python3 ${HOME}/katapult/scripts/flashtool.py -d ${dev} -f ${bin}    # ${label}"
   fi
-}
-
-# Produce a safe ALL-CAPS tag from an alias (e.g. "Fang 1" -> "FANG_1")
-alias_tag() {
-  local a="$1"
-  a="${a//[^A-Za-z0-9]/_}"
-  printf '%s\n' "${a^^}"
 }
 
 
@@ -187,10 +177,10 @@ for s in "${SECTIONS[@]}"; do
           echo "#   alias '${a}': UUID not found in printer.cfg"
           TAG="$(alias_tag "${a}")"
           if [[ "$mode" == "gcode_shell" ]]; then
-            echo "RUN_SHELL_COMMAND CMD=FLASH_CAN PARAMS=\"-i can0 -u <${TAG}_UUID> -f ${outfile}\""
+            echo "RUN_SHELL_COMMAND CMD=FLASH_CAN PARAMS=\"-i can0 -u {{${TAG}_UUID}} -f ${outfile}\""
           else
             echo "python3 ${HOME}/klipper/scripts/canbus_query.py can0"
-            echo "python3 ${HOME}/katapult/scripts/flash_can.py -i can0 -u <${TAG}_UUID> -f ${outfile}"
+            echo "python3 ${HOME}/katapult/scripts/flash_can.py -i can0 -u {{${TAG}_UUID}} -f ${outfile}"
           fi
         fi
       done
@@ -218,9 +208,9 @@ for s in "${SECTIONS[@]}"; do
           echo "#   alias '${a}': serial not found in printer.cfg"
           TAG="$(alias_tag "${a}")"
           if [[ "$mode" == "gcode_shell" ]]; then
-            echo "RUN_SHELL_COMMAND CMD=FLASH_USB PARAMS=\"-d /dev/serial/by-id/<${TAG}_SERIAL> -f ${outfile}\"    # ${a}"
+            echo "RUN_SHELL_COMMAND CMD=FLASH_USB PARAMS=\"-d /dev/serial/by-id/{{${TAG}_SERIAL}} -f ${outfile}\"    # ${a}"
           else
-            echo "${USB_FLASHER} -d /dev/serial/by-id/<${TAG}_SERIAL> -f ${outfile}    # ${a}"
+            echo "${USB_FLASHER} -d /dev/serial/by-id/{{${TAG}_SERIAL}} -f ${outfile}    # ${a}"
           fi
         fi
       done
