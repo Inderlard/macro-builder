@@ -31,8 +31,8 @@ HAS_FLASH_CAN=false
 HAS_FLASH_USB=false
 
 if [[ -f "${KATA_DIR}/scripts/flash_can.py" ]]; then HAS_FLASH_CAN=true; fi
-# Accept either flash_usb.py (preferred upstream) or legacy flashtool.py
-if [[ -f "${KATA_DIR}/scripts/flash_usb.py" ]] || [[ -f "${KATA_DIR}/scripts/flashtool.py" ]]; then HAS_FLASH_USB=true; fi
+# Accept either flashtool.py (preferred upstream) or legacy flashtool.py
+if [[ -f "${KATA_DIR}/scripts/flashtool.py" ]] || [[ -f "${KATA_DIR}/scripts/flashtool.py" ]]; then HAS_FLASH_USB=true; fi
 
 if [[ ! -d "${KATA_DIR}" || "${HAS_FLASH_CAN}" != true || "${HAS_FLASH_USB}" != true ]]; then
   echo "ERROR: Katapult is not installed correctly."
@@ -40,7 +40,7 @@ if [[ ! -d "${KATA_DIR}" || "${HAS_FLASH_CAN}" != true || "${HAS_FLASH_USB}" != 
   echo "     git clone https://github.com/Arksine/katapult.git ~/katapult"
   echo "   Ensure these exist:"
   echo "     ~/katapult/scripts/flash_can.py"
-  echo "     ~/katapult/scripts/flash_usb.py   # or legacy flashtool.py"
+  echo "     ~/katapult/scripts/flashtool.py   # or legacy flashtool.py"
   exit 1
 fi
 
@@ -100,7 +100,7 @@ cat > "${BUILDER_CFG}" <<'EOF'
 #
 # Notes:
 # - CAN sections will print 'flash_can.py' suggestions (or RUN_SHELL_COMMAND via gcode).
-# - USB sections will print 'flash_usb.py' (or legacy 'flashtool.py') suggestions (or RUN_SHELL_COMMAND via gcode).
+# - USB sections will print 'flashtool.py' (or legacy 'flashtool.py') suggestions (or RUN_SHELL_COMMAND via gcode).
 # - SD sections print manual steps (copy to microSD root and power-cycle).
 #
 # ------- EXAMPLE: KLIPPER over CAN (two toolheads) -------

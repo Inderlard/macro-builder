@@ -42,6 +42,14 @@ print_usb_cmd() { # mode dev bin label
   fi
 }
 
+# Produce a safe ALL-CAPS tag from an alias (e.g. "Fang 1" -> "FANG_1")
+alias_tag() {
+  local a="$1"
+  a="${a//[^A-Za-z0-9]/_}"
+  printf '%s\n' "${a^^}"
+}
+
+
 # === Version tagging ===
 DATE="$(date +%d_%m_%Y)"
 pushd "${REPO_DIR}" >/dev/null
@@ -167,11 +175,12 @@ for s in "${SECTIONS[@]}"; do
           print_can_cmd "$mode" "$uuid" "$outfile" "$a"
         else
           echo "#   alias '${a}': UUID not found in printer.cfg"
+          TAG="$(alias_tag "${a}")"
           if [[ "$mode" == "gcode_shell" ]]; then
-            echo "RUN_SHELL_COMMAND CMD=FLASH_CAN PARAMS=\"-i can0 -u <UUID_${a}> -f ${outfile}\""
+            echo "RUN_SHELL_COMMAND CMD=FLASH_CAN PARAMS=\"-i can0 -u <${TAG}_UUID> -f ${outfile}\""
           else
             echo "python3 ${HOME}/klipper/scripts/canbus_query.py can0"
-            echo "python3 ${HOME}/katapult/scripts/flash_can.py -i can0 -u <UUID_${a}> -f ${outfile}"
+            echo "python3 ${HOME}/katapult/scripts/flash_can.py -i can0 -u <${TAG}_UUID> -f ${outfile}"
           fi
         fi
       done
@@ -188,10 +197,11 @@ for s in "${SECTIONS[@]}"; do
           print_usb_cmd "$mode" "$dev" "$outfile" "$a"
         else
           echo "#   alias '${a}': serial not found in printer.cfg"
+          TAG="$(alias_tag "${a}")"
           if [[ "$mode" == "gcode_shell" ]]; then
-            echo "RUN_SHELL_COMMAND CMD=FLASH_USB PARAMS=\"-d /dev/serial/by-id/<usb-...> -f ${outfile}\"    # ${a}"
+            echo "RUN_SHELL_COMMAND CMD=FLASH_USB PARAMS=\"-d /dev/serial/by-id/<${TAG}_SERIAL> -f ${outfile}\"    # ${a}"
           else
-            echo "python3 ${HOME}/katapult/scripts/flash_usb.py -d /dev/serial/by-id/<usb-...> -f ${outfile}    # ${a}"
+            echo "python3 ${HOME}/katapult/scripts/flashtool.py -d /dev/serial/by-id/<${TAG}_SERIAL> -f ${outfile}    # ${a}"
           fi
         fi
       done
@@ -210,6 +220,7 @@ for s in "${SECTIONS[@]}"; do
       ;;
   esac
 done
+
   echo
   echo "=== CLEANUP (keep last 10) ==="
   for s in "${SECTIONS[@]}"; do

@@ -127,7 +127,7 @@ The builders don’t flash automatically; they **print** commands tailored to ea
 * For `type: usb`
 
   * `ssh`:
-    `python3 ~/katapult/scripts/flash_usb.py -d /dev/serial/by-id/<...> -f <bin>`
+    `python3 ~/katapult/scripts/flashtool.py -d /dev/serial/by-id/<...> -f <bin>`
   * `gcode_shell`:
     `RUN_SHELL_COMMAND CMD=FLASH_USB PARAMS="-d /dev/serial/by-id/<...> -f <bin>"`
 
