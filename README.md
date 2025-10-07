@@ -13,12 +13,12 @@ Helper toolkit to **build and flash Klipper firmwares and Katapult bootloaders**
 
 ## Dependencies
 
-* **(Klipper)[https://github.com/Klipper3d/klipper]** with the **`gcode_shell_command`** extra available
+* **[Klipper](https://github.com/Klipper3d/klipper)** with the **`gcode_shell_command`** extra available
   (file: `~/klipper/klippy/extras/gcode_shell_command.py`)
-* **(Katapult)[https://github.com/Arksine/katapult]** repository (for flashing tools and Katapult builds)
+* **[Katapult](https://github.com/Arksine/katapult)** repository (for flashing tools and Katapult builds)
   (`~/katapult` with `scripts/flash_can.py` and `scripts/flashtool.py`)
 * **G-Code Shell Command**
-  (You can install it from (kiauh)[https://github.com/dw-0/kiauh] "4) [Advanced]" > "8) [G-Code Shell Command]")
+  (You can install it from [kiauh](https://github.com/dw-0/kiauh) "4) [Advanced]" > "8) [G-Code Shell Command]")
 
 > If either dependency is missing, the installer will stop and tell you how to fix it.
 
@@ -263,5 +263,6 @@ You are free to use, modify, and distribute under the terms of the GPLv3. A copy
   → That’s intended: `FLASH_CAN` / `FLASH_USB` are `gcode_shell_command` (hidden). Use the BUILD/SHOW macros instead.
 * CAN UUIDs or USB serial not detected
   → Ensure your `printer.cfg` has `[mcu <alias>]` sections with `canbus_uuid:` or `serial:` set. Use `mcu_alias:` keys in `builder.cfg` to match them.
+
 
 
