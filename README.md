@@ -7,7 +7,7 @@ Helper toolkit to **build and flash Klipper firmwares and Katapult bootloaders**
 * Output: versioned artifacts under the repo’s `artifacts/` directory
 * Optional: print **flash commands as SSH** lines or **as G-code** via `RUN_SHELL_COMMAND` (works from Mainsail buttons)
 
-> Recommended environment: MainsailOS on Raspberry Pi (RPi 4), with Klipper/Moonraker/Mainsail installed.
+> Recommended environment: MainsailOS.
 
 ---
 
@@ -27,7 +27,8 @@ Helper toolkit to **build and flash Klipper firmwares and Katapult bootloaders**
 1. Clone this repo:
 
 ```bash
-git clone <your_repo_url> ~/macro-builder
+cd ~
+git clone https://github.com/Inderlard/macro-builder
 ```
 
 2. Ensure the scripts are executable:
@@ -64,21 +65,29 @@ sudo systemctl restart klipper
 ---
 
 ## Automatic Installation (recommended)
+1. Clone this repo:
 
-From the cloned repo:
+```bash
+cd ~
+git clone https://github.com/Inderlard/macro-builder
+```
+
+2. Ensure the scripts are executable:
+
+```bash
+chmod +x ~/macro-builder/build_klipper.sh
+chmod +x ~/macro-builder/build_katapult.sh
+chmod +x ~/macro-builder/tools/new_config_wizard.sh
+chmod +x ~/macro-builder/tools/install.sh
+```
+
+3. Run the installer:
 
 ```bash
 bash ~/macro-builder/tools/install.sh
 ```
 
-The installer will:
-
-* Check **`gcode_shell_command`** and **Katapult** exist (aborts with hints if missing)
-* Create `~/printer_data/config/builder_macros.cfg` and **auto-include** it at the top of `printer.cfg`
-* Create `~/printer_data/config/builder.cfg` with **English, commented examples** (CAN / USB / SD)
-* Leave your repo structure untouched (no extra dirs created outside the repo)
-
-Restart Klipper after install:
+4. Restart Klipper after install:
 
 ```bash
 sudo systemctl restart klipper
@@ -242,3 +251,4 @@ You are free to use, modify, and distribute under the terms of the GPLv3. A copy
   → That’s intended: `FLASH_CAN` / `FLASH_USB` are `gcode_shell_command` (hidden). Use the BUILD/SHOW macros instead.
 * CAN UUIDs or USB serial not detected
   → Ensure your `printer.cfg` has `[mcu <alias>]` sections with `canbus_uuid:` or `serial:` set. Use `mcu_alias:` keys in `builder.cfg` to match them.
+
