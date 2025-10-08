@@ -1,19 +1,30 @@
 #!/usr/bin/env bash
 #
-# build_klipper.sh - Klipper firmware build system  
+# build_klipper.sh - Klipper firmware build system
 # Uses libbuilder.sh for common functionality
 #
 
 set -Eeuo pipefail
 
-### === SCRIPT CONFIGURATION === ###
+### === SCRIPT BASE DIR (main script) === ###
+BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+### === SOURCE SHARED LIBRARY === ###
+# libbuilder define sus propias constantes (incl. SYSTEM_DIR, PRINTER_CFG, etc.)
+source "${BASE_DIR}/libbuilder.sh" || {
+    echo "ERROR: Failed to load libbuilder.sh"
+    exit 1
+}
+
+### === SCRIPT CONFIGURATION (after sourcing lib) === ###
 readonly BUILD_TYPE="klipper"
 
-# Repository and paths
+# Repos and paths
 readonly REPO_DIR="${HOME}/klipper"
-readonly CFG_BASE="${SCRIPT_DIR}/configs/klipper"
-readonly OUT_DIR="${SCRIPT_DIR}/artifacts/klipper"
+readonly CFG_BASE="${BASE_DIR}/configs/klipper"
+readonly OUT_DIR="${BASE_DIR}/artifacts/klipper"
 readonly LOG_SUMMARY="${SYSTEM_DIR}/builder_klipper_last.txt"
+
 
 ### === SOURCE LIBRARY === ###
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

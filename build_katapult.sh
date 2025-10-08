@@ -6,14 +6,24 @@
 
 set -Eeuo pipefail
 
-### === SCRIPT CONFIGURATION === ###
+### === SCRIPT BASE DIR (main script) === ###
+BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+### === SOURCE SHARED LIBRARY === ###
+source "${BASE_DIR}/libbuilder.sh" || {
+    echo "ERROR: Failed to load libbuilder.sh"
+    exit 1
+}
+
+### === SCRIPT CONFIGURATION (after sourcing lib) === ###
 readonly BUILD_TYPE="katapult"
 
-# Repository and paths
+# Repos and paths
 readonly REPO_DIR="${HOME}/katapult"
-readonly CFG_BASE="${SCRIPT_DIR}/configs/katapult"
-readonly OUT_DIR="${SCRIPT_DIR}/artifacts/katapult"
+readonly CFG_BASE="${BASE_DIR}/configs/katapult"
+readonly OUT_DIR="${BASE_DIR}/artifacts/katapult"
 readonly LOG_SUMMARY="${SYSTEM_DIR}/builder_katapult_last.txt"
+
 
 ### === SOURCE LIBRARY === ###
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
