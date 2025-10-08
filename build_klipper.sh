@@ -6,6 +6,10 @@
 
 set -Eeuo pipefail
 
+# Merge stderr into stdout so Mainsail prints in order
+exec 2>&1
+
+
 ### === SCRIPT BASE DIR (main script) === ###
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -25,13 +29,6 @@ readonly CFG_BASE="${BASE_DIR}/configs/klipper"
 readonly OUT_DIR="${BASE_DIR}/artifacts/klipper"
 readonly LOG_SUMMARY="${SYSTEM_DIR}/builder_klipper_last.txt"
 
-
-### === SOURCE LIBRARY === ###
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "${SCRIPT_DIR}/libbuilder.sh" || {
-    echo "ERROR: Failed to load libbuilder.sh"
-    exit 1
-}
 
 ### === KLIPPER-SPECIFIC FUNCTIONS === ###
 
