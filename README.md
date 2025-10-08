@@ -24,6 +24,13 @@ Helper toolkit to **build and flash Klipper firmwares and Katapult bootloaders**
 
 ---
 
+## Disclaimer
+
+The author(s) of this repository are not responsible for its use or any consequences that may arise from it.
+If you download and use the repository, you do so at your own discretion and risk.
+
+---
+
 
 ## Automatic Installation (recommended)
 1. Clone this repo:
@@ -263,6 +270,7 @@ You are free to use, modify, and distribute under the terms of the GPLv3. A copy
   → That’s intended: `FLASH_CAN` / `FLASH_USB` are `gcode_shell_command` (hidden). Use the BUILD/SHOW macros instead.
 * CAN UUIDs or USB serial not detected
   → Ensure your `printer.cfg` has `[mcu <alias>]` sections with `canbus_uuid:` or `serial:` set. Use `mcu_alias:` keys in `builder.cfg` to match them.
+
 
 
 

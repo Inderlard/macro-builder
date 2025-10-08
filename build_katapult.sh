@@ -1,246 +1,182 @@
 #!/usr/bin/env bash
+#
+# build_katapult.sh - Katapult bootloader build system
+# Uses libbuilder.sh for common functionality
+#
+
 set -Eeuo pipefail
 
-# === Portable paths ===
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PRINTER_CFG="${HOME}/printer_data/config/printer.cfg"
-BUILD_CFG="${HOME}/printer_data/config/builder.cfg"
+# Merge stderr into stdout so Mainsail prints in order
+exec 2>&1
 
-REPO_DIR="${HOME}/katapult"
-CFG_BASE="${SCRIPT_DIR}/configs/katapult"
-OUT_DIR="${SCRIPT_DIR}/artifacts/katapult"
-LOG_SUMMARY="${HOME}/printer_data/system/builder_katapult_last.txt"
 
-mkdir -p "${OUT_DIR}" "$(dirname "${LOG_SUMMARY}")"
+### === SCRIPT BASE DIR (main script) === ###
+BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# === Utils ===
-trim(){ sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'; }
-resolve_cfg_path() {
-  # Accepts bare filename (resolved under CFG_BASE), relative path (to repo root),
-  # or absolute path. '~' is expanded to $HOME.
-  local p="$1"; p="${p/#\~/$HOME}"
-  if [[ "$p" == */* ]]; then
-    [[ "$p" != /* ]] && printf '%s\n' "${SCRIPT_DIR}/$p" || printf '%s\n' "$p"
-  else
-    printf '%s/%s\n' "${CFG_BASE}" "$p"
-  fi
-}
-alias_tag() {
-  local a="$1"
-  a="${a//[^A-Za-z0-9]/_}"
-  printf '%s\n' "${a^^}"
-}
-print_can_cmd() { # mode uuid bin label
-  local mode="$1" uuid="$2" bin="$3" label="$4"
-  if [[ "$mode" == "gcode_shell" ]]; then
-    echo "RUN_SHELL_COMMAND CMD=FLASH_CAN PARAMS=\"-i can0 -u ${uuid} -f ${bin}\"    # ${label}"
-  else
-    echo "python3 ${HOME}/katapult/scripts/flash_can.py -i can0 -u ${uuid} -f ${bin}    # ${label}"
-  fi
-}
-print_usb_cmd() { # mode dev bin label
-  local mode="$1" dev="$2" bin="$3" label="$4"
-  if [[ "$mode" == "gcode_shell" ]]; then
-    echo "RUN_SHELL_COMMAND CMD=FLASH_USB PARAMS=\"-d ${dev} -f ${bin}\"    # ${label}"
-  else
-    echo "python3 ${HOME}/katapult/scripts/flashtool.py -d ${dev} -f ${bin}    # ${label}"
-  fi
+### === SOURCE SHARED LIBRARY === ###
+source "${BASE_DIR}/libbuilder.sh" || {
+    echo "ERROR: Failed to load libbuilder.sh"
+    exit 1
 }
 
+### === SCRIPT CONFIGURATION (after sourcing lib) === ###
+readonly BUILD_TYPE="katapult"
 
-# === Version tagging ===
-DATE="$(date +%d_%m_%Y)"
-pushd "${REPO_DIR}" >/dev/null
-GIT_HASH="$(git rev-parse --short HEAD || echo unknown)"
-popd >/dev/null
+# Repos and paths
+readonly REPO_DIR="${HOME}/katapult"
+readonly CFG_BASE="${BASE_DIR}/configs/katapult"
+readonly OUT_DIR="${BASE_DIR}/artifacts/katapult"
+readonly LOG_SUMMARY="${SYSTEM_DIR}/builder_katapult_last.txt"
 
-build_one () {
-  local name="$1" cfg="$2" out_fixed="$3"
-  echo "==> Building Katapult ${name} ..."
-  pushd "${REPO_DIR}" >/dev/null
-  make clean
-  local cfg_resolved; cfg_resolved="$(resolve_cfg_path "${cfg}")"
-  [[ -f "${cfg_resolved}" ]] || { echo "[ERR] Missing config: ${cfg_resolved}"; popd >/dev/null; exit 1; }
-  cp -f "${cfg_resolved}" .config
-  make olddefconfig
-  make -j"$(nproc)"
-  [[ -f out/katapult.bin ]] || { echo "[ERR] out/katapult.bin was not generated"; popd >/dev/null; exit 1; }
-  local dst_fixed="${OUT_DIR}/${out_fixed}"
-  local dst_ver="${OUT_DIR}/katapult-${name}-${DATE}-${GIT_HASH}.bin"
-  rm -f "${dst_fixed}"
-  cp -f out/katapult.bin "${dst_fixed}"
-  cp -f out/katapult.bin "${dst_ver}"
-  sha256sum "${dst_ver}" > "${dst_ver}.sha256"
-  popd >/dev/null
-  echo "   -> ${dst_fixed}"
-  echo "   -> ${dst_ver}"
-}
+### === KATAPULT-SPECIFIC FUNCTIONS === ###
 
-# === Parse builder.cfg: ONLY [katapult ...] sections ===
-declare -a SECTIONS=(); declare -A SEEN_SECTION
-declare -A B_NAME B_CFG B_OUT B_TYPE B_ALIASES B_FLASHMODE
-cur=""
-while IFS= read -r raw || [[ -n "$raw" ]]; do
-  raw="${raw%%#*}"; raw="$(printf '%s' "$raw" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
-  [[ -z "$raw" ]] && continue
-
-  if [[ "${raw,,}" =~ ^\[katapult[[:space:]]+([^\]]+)\]$ ]]; then
-    cur="${BASH_REMATCH[1]}"
-    if [[ -z "${SEEN_SECTION[$cur]:-}" ]]; then SEEN_SECTION["$cur"]=1; SECTIONS+=("$cur"); fi
-    continue
-  fi
-  # Any other header closes current [katapult ...] context
-  if [[ "${raw}" =~ ^\[[^]]+\]$ ]]; then
-    cur=""
-    continue
-  fi
-
-  [[ -z "$cur" ]] && continue
-
-  IFS=':' read -r k v <<<"$raw"
-  k="$(echo "$k" | tr '[:upper:]' '[:lower:]' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
-  v="$(echo "$v" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
-  case "$k" in
-    name)   B_NAME["$cur"]="$v" ;;
-    config) B_CFG["$cur"]="$v" ;;
-    out)    B_OUT["$cur"]="$v" ;;
-    type)   B_TYPE["$cur"]="$(echo "$v" | tr '[:upper:]' '[:lower:]')" ;;
-    mcu_alias|mcu_alias*) B_ALIASES["$cur"]="$(printf '%s %s' "${B_ALIASES[$cur]:-}" "$v" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')" ;;
-    flash\ terminal)
-      v_low="$(echo "$v" | tr '[:upper:]' '[:lower:]')"
-      [[ "$v_low" == "gcode_shell" || "$v_low" == "ssh" ]] || v_low="ssh"
-      B_FLASHMODE["$cur"]="$v_low"
-      ;;
-  esac
-done < "${BUILD_CFG}"
-
-# === Build all katapult sections ===
-for s in "${SECTIONS[@]}"; do build_one "${B_NAME[$s]:-$s}" "${B_CFG[$s]}" "${B_OUT[$s]}"; done
-
-# === Index printer.cfg for alias->UUID/serial maps ===
-declare -A CAN_BY_ALIAS CAN_LABEL USB_BY_ALIAS USB_LABEL
-if [[ -f "${PRINTER_CFG}" ]]; then
-  akey="" ; lbl=""
-  while IFS= read -r line || [[ -n "$line" ]]; do
-    line="${line%%#*}"; line="$(printf '%s' "$line" | trim)"; [[ -z "$line" ]] && continue
-    low="$(echo "$line" | tr '[:upper:]' '[:lower:]')"
-    if [[ "$low" =~ ^\[(mcu)([[:space:]]+([^\]]+))?\]$ ]]; then
-      if [[ -n "${BASH_REMATCH[3]:-}" ]]; then
-        alias_raw="$(echo "$line" | sed -E 's/^\[mcu[[:space:]]+//I; s/\]$//')"
-        akey="$(echo "$alias_raw" | tr '[:upper:]' '[:lower:]')"; lbl="mcu ${alias_raw}"
-      else akey="main"; lbl="mcu"; fi
-      continue
+# Build a single Katapult target
+build_katapult_target() {
+    local name="$1"      # Configuration name
+    local cfg="$2"       # Config file path
+    local out_fixed="$3" # Output filename
+    
+    log_info "Building Katapult: $name"
+    
+    # Change to repository directory
+    pushd "$REPO_DIR" >/dev/null
+    
+    # Clean previous build
+    if ! make clean >/dev/null 2>&1; then
+        log_warning "Make clean failed, continuing anyway..."
     fi
-    if echo "$low" | grep -Eq '^canbus_uuid[[:space:]]*:'; then
-      uuid="$(echo "$line" | sed -E 's/^canbus_uuid[[:space:]]*:[[:space:]]*//I')"
-      CAN_BY_ALIAS["$akey"]="$uuid"; CAN_LABEL["$akey"]="$lbl"; continue
+    
+    # Resolve and validate config path
+    local resolved_config
+    resolved_config="$(resolve_config_path "$cfg" "$CFG_BASE")"
+    validate_file "$resolved_config" "Katapult configuration"
+    
+    # Copy configuration and build
+    cp -f "$resolved_config" .config || fatal_error "Failed to copy config"
+    
+    log_info "Running olddefconfig..."
+    if ! make olddefconfig >/dev/null 2>&1; then
+        log_warning "olddefconfig had warnings, continuing..."
     fi
-    if echo "$low" | grep -Eq '^serial[[:space:]]*:'; then
-      ser="$(echo "$line" | sed -E 's/^serial[[:space:]]*:[[:space:]]*//I')"
-      USB_BY_ALIAS["$akey"]="$ser";  USB_LABEL["$akey"]="$lbl"; continue
+    
+    log_info "Compiling Katapult..."
+    local cpu_cores
+    cpu_cores="$(nproc)"
+    if ! make -j"$cpu_cores" >/dev/null 2>&1; then
+        fatal_error "Katapult compilation failed"
     fi
-  done < "${PRINTER_CFG}"
+    
+    # Verify output binary
+    if [[ ! -f "out/katapult.bin" ]]; then
+        fatal_error "Output binary not generated: out/katapult.bin"
+    fi
+    
+    # Prepare artifacts
+    local fixed_output="${OUT_DIR}/${out_fixed}"
+    local date_stamp="$(get_current_date)"
+    local git_hash="$(get_git_commit_hash "$REPO_DIR")"
+    local versioned_output="$(generate_versioned_filename "$BUILD_TYPE" "$name" "$date_stamp" "$git_hash")"
+    local versioned_path="${OUT_DIR}/${versioned_output}"
+    
+    # Remove existing fixed output and copy new binaries
+    rm -f "$fixed_output"
+    cp -f "out/katapult.bin" "$fixed_output" || fatal_error "Failed to copy fixed output"
+    cp -f "out/katapult.bin" "$versioned_path" || fatal_error "Failed to copy versioned output"
+    
+    # Create checksum
+    create_checksum "$versioned_path"
+    
+    popd >/dev/null
+    
+    log_success "Built: $name"
+    log_info "  Fixed: $(basename "$fixed_output")"
+    log_info "  Versioned: $(basename "$versioned_path")"
+}
+
+### === MAIN EXECUTION FUNCTION === ###
+
+main() {
+    log_info "Starting Katapult build process"
+    
+    # Initialize build environment
+    ensure_directory "$OUT_DIR"
+    ensure_directory "$(dirname "$LOG_SUMMARY")"
+    
+    # Parse builder configuration
+    local sections=()
+    declare -A builder_config
+    parse_builder_config "$BUILD_TYPE" sections builder_config
+    
+    if [[ ${#sections[@]} -eq 0 ]]; then
+        log_warning "No Katapult sections found in builder.cfg"
+        exit 0
+    fi
+    
+    log_info "Found ${#sections[@]} Katapult configuration(s)"
+    
+    # Build all targets
+    for section in "${sections[@]}"; do
+        local name="${builder_config[${section}.name]:-$section}"
+        local config_file="${builder_config[${section}.config]:-}"
+        local output_file="${builder_config[${section}.out]:-}"
+        
+        if [[ -z "$config_file" || -z "$output_file" ]]; then
+            log_error "Section '$section' missing config or out parameter"
+            continue
+        fi
+        
+        build_katapult_target "$name" "$config_file" "$output_file"
+    done
+    
+    # Parse printer configuration for flash commands
+    declare -A can_uuid_map usb_serial_map can_label_map usb_label_map
+    parse_printer_config can_uuid_map usb_serial_map can_label_map usb_label_map
+    
+    # Generate summary
+    local summary_file
+    summary_file="$(mktemp -t kata_summary.XXXXXX)"
+    
+    {
+        echo
+        echo "=== KATAPULT BOOTLOADERS READY ==="
+        for section in "${sections[@]}"; do
+            local name="${builder_config[${section}.name]:-$section}"
+            local output_file="${builder_config[${section}.out]:-}"
+            echo "${name}: ${OUT_DIR}/${output_file}"
+        done
+        
+        echo
+        echo "=== FLASH COMMANDS ==="
+        for section in "${sections[@]}"; do
+            local name="${builder_config[${section}.name]:-$section}"
+            local output_file="${builder_config[${section}.out]:-}"
+            local flash_type="${builder_config[${section}.type]:-can}"
+            local flash_mode="${builder_config[${section}.flash_mode]:-ssh}"
+            local aliases="${builder_config[${section}.aliases]:-}"
+            
+            local binary_path="${OUT_DIR}/${output_file}"
+            generate_flash_commands "$name" "$binary_path" "$flash_type" "$flash_mode" \
+                "$aliases" can_uuid_map usb_serial_map
+            echo
+        done
+        
+        echo
+        echo "=== CLEANUP COMMANDS (keep last 10) ==="
+        for section in "${sections[@]}"; do
+            local name="${builder_config[${section}.name]:-$section}"
+            echo "ls -1t ${OUT_DIR}/katapult-${name}-*.bin 2>/dev/null | tail -n +11 | xargs -r rm -f"
+        done
+    } > "$summary_file"
+    
+    # Save summary
+    cp -f "$summary_file" "$LOG_SUMMARY"
+    rm -f "$summary_file"
+    
+    log_success "Build summary saved to: $LOG_SUMMARY"
+    log_info "Use 'BUILDER_KATAPULT_SHOW' in Mainsail to view commands"
+}
+
+### === SCRIPT ENTRY POINT === ###
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
 fi
-
-# === Output ===
-# --- Write summary to file, do not stream to console (avoids Mainsail reordering) ---
-SUMMARY_FILE="$(mktemp -t mb_summary_kata.XXXXXX)"
-
-{
-  echo
-  echo "=== BOOTLOADERS READY (KATAPULT) ==="
-  for s in "${SECTIONS[@]}"; do
-    echo "${B_NAME[$s]:-$s} : ${OUT_DIR}/${B_OUT[$s]}"
-  done
-  echo
-  echo "=== KATAPULT FLASH COMMANDS (by aliases) ==="
-for s in "${SECTIONS[@]}"; do
-  name="${B_NAME[$s]:-$s}"
-  outfile="${OUT_DIR}/${B_OUT[$s]}"
-  type="${B_TYPE[$s]:-can}"
-  mode="${B_FLASHMODE[$s]:-ssh}"
-  read -r -a aliases <<<"${B_ALIASES[$s]:-}"
-
-  case "$type" in
-    can)
-      mode_label="$([ "$mode" = "gcode_shell" ] && echo "GCODE" || echo "SSH")"
-      echo "# [${name}] via CAN (${mode_label}):"
-      ((${#aliases[@]}==0)) && echo "#   (Define at least one 'mcu_alias:' in builder.cfg)"
-      for a in "${aliases[@]:-}"; do
-        key="$(echo "$a" | tr '[:upper:]' '[:lower:]')"
-        uuid="${CAN_BY_ALIAS[$key]:-}"
-        if [[ -n "$uuid" ]]; then
-          # Found UUID -> normal command
-          print_can_cmd "$mode" "$uuid" "$outfile" "$a"
-        else
-          # Not found -> show placeholder with ALIAS-based tag
-          echo "#   alias '${a}': UUID not found in printer.cfg"
-          TAG="$(alias_tag "${a}")"
-          if [[ "$mode" == "gcode_shell" ]]; then
-            echo "RUN_SHELL_COMMAND CMD=FLASH_CAN PARAMS=\"-i can0 -u {{${TAG}_UUID}} -f ${outfile}\""
-          else
-            echo "python3 ${HOME}/klipper/scripts/canbus_query.py can0"
-            echo "python3 ${HOME}/katapult/scripts/flash_can.py -i can0 -u {{${TAG}_UUID}} -f ${outfile}"
-          fi
-        fi
-      done
-      echo
-      ;;
-    usb)
-      mode_label="$([ "$mode" = "gcode_shell" ] && echo "GCODE" || echo "SSH")"
-      echo "# [${name}] via USB (Katapult, ${mode_label}):"
-      ((${#aliases[@]}==0)) && echo "#   (Define 'mcu_alias: main' or the exact alias)"
-      # Pick preferred USB flasher (flash_usb.py) and fallback to flashtool.py if not present
-      USB_FLASHER="python3 ${HOME}/katapult/scripts/flash_usb.py"
-      [[ -f "${HOME}/katapult/scripts/flash_usb.py" ]] || USB_FLASHER="python3 ${HOME}/katapult/scripts/flashtool.py"
-      for a in "${aliases[@]:-}"; do
-        key="$(echo "$a" | tr '[:upper:]' '[:lower:]')"
-        dev="${USB_BY_ALIAS[$key]:-}"
-        if [[ -n "$dev" ]]; then
-          # Found serial -> normal command
-          if [[ "$mode" == "gcode_shell" ]]; then
-            echo "RUN_SHELL_COMMAND CMD=FLASH_USB PARAMS=\"-d ${dev} -f ${outfile}\"    # ${a}"
-          else
-            echo "${USB_FLASHER} -d ${dev} -f ${outfile}    # ${a}"
-          fi
-        else
-          # Not found -> show placeholder with ALIAS-based tag
-          echo "#   alias '${a}': serial not found in printer.cfg"
-          TAG="$(alias_tag "${a}")"
-          if [[ "$mode" == "gcode_shell" ]]; then
-            echo "RUN_SHELL_COMMAND CMD=FLASH_USB PARAMS=\"-d /dev/serial/by-id/{{${TAG}_SERIAL}} -f ${outfile}\"    # ${a}"
-          else
-            echo "${USB_FLASHER} -d /dev/serial/by-id/{{${TAG}_SERIAL}} -f ${outfile}    # ${a}"
-          fi
-        fi
-      done
-      echo
-      ;;
-    sd)
-      echo "# [${name}] via microSD (manual):"
-      echo "1) Copy ${outfile} to the ROOT of a FAT32 microSD."
-      echo "2) Insert the microSD into the board and power-cycle."
-      echo "3) Many boards rename the file to .CUR after flashing."
-      echo
-      ;;
-    *)
-      echo "# [${name}] unknown type: ${type}"
-      echo
-      ;;
-  esac
-done
-
-  echo
-  echo "=== CLEANUP (keep last 10) ==="
-  for s in "${SECTIONS[@]}"; do
-    nm="${B_NAME[$s]:-$s}"
-    echo "ls -1t ${OUT_DIR}/katapult-${nm}-*.bin 2>/dev/null | tail -n +11 | xargs -r rm -f   # ${nm}"
-  done
-} > "${SUMMARY_FILE}"
-
-# Save as the “last” summary and keep console output minimal
-mkdir -p "$(dirname "${LOG_SUMMARY}")"
-cp -f "${SUMMARY_FILE}" "${LOG_SUMMARY}"
-rm -f "${SUMMARY_FILE}"
-
-echo "Summary saved to: ${LOG_SUMMARY}"
