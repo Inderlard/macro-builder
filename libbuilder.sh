@@ -16,34 +16,68 @@ readonly PRINTER_CFG="${HOME_DIR}/printer_data/config/printer.cfg"
 readonly BUILD_CFG="${HOME_DIR}/printer_data/config/builder.cfg"
 readonly SYSTEM_DIR="${HOME_DIR}/printer_data/system"
 
+# --- User config root handling ([configs] path in builder.cfg) ---
+
+# Expand "~" and environment variables in a path (user-controlled)
 expand_path() {
-    # use 'eval echo' carefully to expand ~ and $VARS, path is controlled by user
     local p="$1"
     eval "echo ${p}"
 }
 
-# Read [configs] path from builder.cfg; fallback to a sane default
+# True/false: does builder.cfg contain a [configs] section?
+has_configs_section() {
+    [[ -f "$BUILD_CFG" ]] && grep -qi '^[[:space:]]*\[configs\][[:space:]]*$' "$BUILD_CFG"
+}
+
+# Parse builder.cfg and return the custom configs root if present,
+# otherwise return sensible default: ~/printer_data/config/macro-builder/configs
 get_configs_root() {
-    local root=""
+    local root="" in=0 line lower
     if [[ -f "$BUILD_CFG" ]]; then
-        # Read the block [configs] and extract "path: ..."
-        root="$(awk -v RS= -v IGNORECASE=1 '
-            /^\[configs\]/ {
-               if (match($0, /(^|\n)[ \t]*path[ \t]*:[ \t]*([^\r\n#]+)/, m)) {
-                   gsub(/^[ \t]+|[ \t]+$/, "", m[2]);
-                   print m[2];
-               }
-            }' "$BUILD_CFG" | head -n1)"
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            # strip comments & trim
+            line="${line%%#*}"
+            line="$(string_trim "$line")"
+            [[ -z "$line" ]] && continue
+            lower="$(string_to_lower "$line")"
+
+            if [[ "$lower" =~ ^\[configs\]$ ]]; then
+                in=1; continue
+            fi
+            # end of block on next header
+            if ((in)) && [[ "$lower" =~ ^\[[^]]+\]$ ]]; then
+                break
+            fi
+            if ((in)) && [[ "$lower" =~ ^path[[:space:]]*:[[:space:]]*.*$ ]]; then
+                root="${line#*:}"
+                root="$(string_trim "$root")"
+                break
+            fi
+        done < "$BUILD_CFG"
     fi
-    # default if not set
     [[ -z "$root" ]] && root="${HOME_DIR}/printer_data/config/macro-builder/configs"
     echo "$(expand_path "$root")"
 }
 
-# User config roots (resolved)
+# Resolved user config roots (used by builders and wizard)
 readonly CFG_USER_ROOT="$(get_configs_root)"
 readonly CFG_USER_BASE_KLIPPER="${CFG_USER_ROOT}/klipper"
 readonly CFG_USER_BASE_KATAPULT="${CFG_USER_ROOT}/katapult"
+
+# Resolve config search order: absolute -> user_base/file -> repo_base/file
+resolve_config_2tier() {
+    local value="$1" ; local repo_base="$2" ; local user_base="$3"
+    if [[ "$value" = /* ]]; then
+        printf '%s' "$value"
+    else
+        if [[ -n "$user_base" && -f "${user_base}/${value}" ]]; then
+            printf '%s/%s' "$user_base" "$value"
+        else
+            printf '%s/%s' "$repo_base" "$value"
+        fi
+    fi
+}
+
 
 # Build types
 readonly BUILD_TYPE_KLIPPER="klipper"
@@ -114,20 +148,6 @@ resolve_config_path() {
         printf '%s' "$value"
     else
         printf '%s/%s' "$base" "$value"
-    fi
-}
-
-# Resolve config search order: absolute -> user_base/<file> -> repo_base/<file>
-resolve_config_2tier() {
-    local value="$1" ; local repo_base="$2" ; local user_base="$3"
-    if [[ "$value" = /* ]]; then
-        printf '%s' "$value"
-    else
-        if [[ -n "$user_base" && -f "${user_base}/${value}" ]]; then
-            printf '%s/%s' "$user_base" "$value"
-        else
-            printf '%s/%s' "$repo_base" "$value"
-        fi
     fi
 }
 
