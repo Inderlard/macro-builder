@@ -7,8 +7,11 @@ Helper toolkit to **build and flash Klipper firmwares and Katapult bootloaders**
 * Output: versioned artifacts under the repo’s `artifacts/` directory
 * Optional: print **flash commands as SSH** lines or **as G-code** via `RUN_SHELL_COMMAND` (works from UI buttons)
 
-> Recommended environment: Web UI.
+> Recommended environment: MainsailOS.
 
+
+> [!WARNING] 
+> MCUs have a limited number of write cycles, so please bear this in mind; continuous updating is not recommended.
 ---
 
 ## Dependencies
@@ -30,8 +33,9 @@ The author(s) of this repository are not responsible for its use or any conseque
 If you download and use the repository, you do so at your own discretion and risk.
 
 > [!WARNING] 
-> This tool does not prevent you from thinking, it just saves you work. For security reasons, scripts are not launched automatically.
-> Always remember to check the commands and compare them with other guides.
+> This tool does not prevent you from making decisions, it just saves you work. For security reasons, scripts are not launched automatically.
+> Please, always remember to check the commands and compare them with other guides.
+> Also, always remember to verify that the board configuration is correct before compiling.
 ---
 
 
@@ -248,6 +252,7 @@ flash terminal: ssh
 ---
 
 ## Questions & Answers
+
 **Q : What is the difference between macro-builder and UKAM?** \
 A : UKAM is a great tool for keeping your klipper up to date. However, macro-builder does not aim to do exactly the same thing. Macro-builder focuses more on convenience and prioritises security above all else, i.e. it makes management easier for novice users through a more graphical interface. Macro-builder is still in development and has a long way to go before it can compare with tools such as UKAM. Although its objective is similar, its methods and target audience are different.
 
@@ -264,13 +269,18 @@ At times, an update may be necessary (uncommon but not impossible). For these ca
 **Q: Why macro-builder does not use rollback?** \
 A: Macro-builder generates its own previous versions, does not verify the installed version, nor does it search for updates for Klipper or Katapult. This is because it aims to open the doors to experimenting more easily with configurations, allowing the user to flash a configuration and return to the last functional one if it fails.
 
+**Q: How often should I update?** \
+A: This is at your own discretion. Macro-builder is only a tool to facilitate and accommodate the work; you are the one who must decide when to load new firmware onto your boards and with what configuration.
 
 ---
 
 ## TODO
+
 There are several things to do:
 1. Add support for flashing all types of boards via USB.
 2. Macro for "Build last working config --board --NbuildsBack"
+3. Add pre-made klipper builds for well-known boards and configuration examples for each of them.
+4. Add pre-made katapult builds for well-known boards and configuration examples for each of them (for first-time flashing and for updates).
 
 ---
 
