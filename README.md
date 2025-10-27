@@ -235,18 +235,6 @@ flash terminal: ssh
 
 ---
 
-## Credits & License
-
-* **Klipper** firmware — © Klipper3D project
-* **Katapult** bootloader — © Arksine
-* Inspiration for UX and flows — **KIAUH** by th33xitus and community
-* **macro-builder** scripts and docs — © Contributors of this repository
-
-This project is released under **GNU General Public License v3.0 (GPL-3.0)**.
-You are free to use, modify, and distribute under the terms of the GPLv3. A copy of the license text should be included as `LICENSE` in the repository.
-
----
-
 ### Quick Troubleshooting
 
 * “No configuration was saved” after `menuconfig`
@@ -257,5 +245,51 @@ You are free to use, modify, and distribute under the terms of the GPLv3. A copy
   → Ensure your `printer.cfg` has `[mcu <alias>]` sections with `canbus_uuid:` or `serial:` set. Use `mcu_alias:` keys in `builder.cfg` to match them.
 
 
+---
 
+## Questions & Answers
+**Q : What is the difference between macro-builder and UKAM?** \
+A : UKAM is a great tool for keeping your klipper up to date. However, macro-builder does not aim to do exactly the same thing. Macro-builder focuses more on convenience and prioritises security above all else, i.e. it makes management easier for novice users through a more graphical interface. Macro-builder is still in development and has a long way to go before it can compare with tools such as UKAM. Although its objective is similar, its methods and target audience are different.
+
+**Q : Is it absolutely necessary to use katapult even for USB?** \
+A : Yes, at the moment the script only has this method, but we intend to add new forms in the future.
+
+**Q: Why does macro-builder update katapult?** \
+A : Tools such as UKAM decide not to update Katapult because there is no real reason to do so. And generally speaking, they are not wrong. Macro-builder supports loading Katapult for two reasons:
+1. Flashing new boards.
+When you purchase a new board, such as an EBB36 or others, it may be easier to add it to your configuration if you do not already have it and use macro-builder as a reliable tool to give it its first flash.
+2. Critical or interesting updates.
+At times, an update may be necessary (uncommon but not impossible). For these cases, you already have a tool that makes it easy, just as you already update Klipper.
+
+**Q: Why macro-builder does not use rollback?** \
+A: Macro-builder generates its own previous versions, does not verify the installed version, nor does it search for updates for Klipper or Katapult. This is because it aims to open the doors to experimenting more easily with configurations, allowing the user to flash a configuration and return to the last functional one if it fails.
+
+
+---
+
+## TODO
+There are several things to do:
+1. Add support for flashing all types of boards via USB.
+2. Macro for "Build last working config --board --NbuildsBack"
+
+---
+
+## Aknowledgments
+
+This script would not exist without [Klipper](https://github.com/Klipper3d/klipper), [Katapult](https://github.com/Arksine/katapult) and
+[Moonraker](https://github.com/Arksine/moonraker). 
+Many thanks to all contributors to these projects.
+
+---
+
+## Credits & License
+
+* **Klipper** firmware — © Klipper3D project
+* **Katapult** bootloader — © Arksine
+* **Moonraker** Web API — © Arksine
+* Inspiration for UX and flows — **KIAUH** by th33xitus and community
+* **macro-builder** scripts and docs — © Contributors of this repository
+
+This project is released under **GNU General Public License v3.0 (GPL-3.0)**.
+You are free to use, modify, and distribute under the terms of the GPLv3. A copy of the license text should be included as `LICENSE` in the repository.
 
