@@ -16,6 +16,35 @@ readonly PRINTER_CFG="${HOME_DIR}/printer_data/config/printer.cfg"
 readonly BUILD_CFG="${HOME_DIR}/printer_data/config/builder.cfg"
 readonly SYSTEM_DIR="${HOME_DIR}/printer_data/system"
 
+expand_path() {
+    # use 'eval echo' carefully to expand ~ and $VARS, path is controlled by user
+    local p="$1"
+    eval "echo ${p}"
+}
+
+# Read [configs] path from builder.cfg; fallback to a sane default
+get_configs_root() {
+    local root=""
+    if [[ -f "$BUILD_CFG" ]]; then
+        # Read the block [configs] and extract "path: ..."
+        root="$(awk -v RS= -v IGNORECASE=1 '
+            /^\[configs\]/ {
+               if (match($0, /(^|\n)[ \t]*path[ \t]*:[ \t]*([^\r\n#]+)/, m)) {
+                   gsub(/^[ \t]+|[ \t]+$/, "", m[2]);
+                   print m[2];
+               }
+            }' "$BUILD_CFG" | head -n1)"
+    fi
+    # default if not set
+    [[ -z "$root" ]] && root="${HOME_DIR}/printer_data/config/macro-builder/configs"
+    echo "$(expand_path "$root")"
+}
+
+# User config roots (resolved)
+readonly CFG_USER_ROOT="$(get_configs_root)"
+readonly CFG_USER_BASE_KLIPPER="${CFG_USER_ROOT}/klipper"
+readonly CFG_USER_BASE_KATAPULT="${CFG_USER_ROOT}/katapult"
+
 # Build types
 readonly BUILD_TYPE_KLIPPER="klipper"
 readonly BUILD_TYPE_KATAPULT="katapult"
@@ -87,6 +116,21 @@ resolve_config_path() {
         printf '%s/%s' "$base" "$value"
     fi
 }
+
+# Resolve config search order: absolute -> user_base/<file> -> repo_base/<file>
+resolve_config_2tier() {
+    local value="$1" ; local repo_base="$2" ; local user_base="$3"
+    if [[ "$value" = /* ]]; then
+        printf '%s' "$value"
+    else
+        if [[ -n "$user_base" && -f "${user_base}/${value}" ]]; then
+            printf '%s/%s' "$user_base" "$value"
+        else
+            printf '%s/%s' "$repo_base" "$value"
+        fi
+    fi
+}
+
 
 # Current date as DD_MM_YYYY
 get_current_date() { date +'%d_%m_%Y'; }

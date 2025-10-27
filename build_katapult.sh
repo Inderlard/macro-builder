@@ -48,7 +48,7 @@ build_katapult_target() {
     
     # Resolve and validate config path
     local resolved_config
-    resolved_config="$(resolve_config_path "$cfg" "$CFG_BASE")"
+    resolved_config="$(resolve_config_2tier "$cfg" "$CFG_BASE" "$CFG_USER_BASE_KATAPULT")"
     validate_file "$resolved_config" "Katapult configuration"
     
     # Copy configuration and build

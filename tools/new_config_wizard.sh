@@ -1,19 +1,56 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# ---------- portable paths ----------
+# ---------- load shared lib to reuse parser & paths ----------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+source "${SCRIPT_DIR}/libbuilder.sh" || { echo "ERROR: cannot load libbuilder.sh"; exit 1; }
+
+
+# ---------- portable paths ----------
+# Repositories (where menuconfig runs)
 KLIP_REPO="${HOME}/klipper"
 KATA_REPO="${HOME}/katapult"
-DEST_KLIP="${SCRIPT_DIR}/configs/klipper"
-DEST_KATA="${SCRIPT_DIR}/configs/katapult"
+
+# User-defined configs root from [configs] path: ... in builder.cfg
+CONFIGS_ROOT="${CFG_USER_ROOT}"                     # provided by libbuilder.sh
+DEST_KLIP="${CFG_USER_BASE_KLIPPER}"                # .../klipper
+DEST_KATA="${CFG_USER_BASE_KATAPULT}"               # .../katapult
+
 
 # ---------- helpers ----------
 need() { command -v "$1" >/dev/null 2>&1 || { echo "ERROR: '$1' is required."; exit 1; }; }
 trim() { sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'; }
 
 need make
-mkdir -p "${DEST_KLIP}" "${DEST_KATA}"
+# Ensure we have a [configs] path set; if not, ask the user and write it
+ensure_directory "$(dirname "$BUILD_CFG")"
+
+if ! awk -v RS= -v IGNORECASE=1 '/^\[configs\]/{found=1} END{exit !found}' "$BUILD_CFG" 2>/dev/null; then
+  echo
+  echo "No [configs] section found in: $BUILD_CFG"
+  default_path="${HOME}/printer_data/config/macro-builder/configs"
+  read -rp "Enter configs root path [${default_path}]: " ans
+  ans="${ans:-$default_path}"
+
+  # Expand ~ and variables (reuse lib’s helper via a subshell)
+  expanded_path="$(bash -lc "echo ${ans}")"
+
+  # Append the section to builder.cfg
+  {
+    echo
+    echo "[configs]"
+    echo "path: ${expanded_path}"
+  } >> "$BUILD_CFG"
+
+  echo "Written [configs] path to builder.cfg: ${expanded_path}"
+
+  # Refresh variables for this session
+  CONFIGS_ROOT="${expanded_path}"
+  DEST_KLIP="${CONFIGS_ROOT}/klipper"
+  DEST_KATA="${CONFIGS_ROOT}/katapult"
+fi
+mkdir -p "${CONFIGS_ROOT}" "${DEST_KLIP}" "${DEST_KATA}"
+
 
 echo "==============================="
 echo "  macro-builder: Config Wizard"
