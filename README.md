@@ -1,13 +1,13 @@
 # macro-builder
 
-Helper toolkit to **build and flash Klipper firmwares and Katapult bootloaders** from Mainsail (or SSH) using a single, user-friendly config file: `~/printer_data/config/builder.cfg`.
+Helper toolkit to **build and flash Klipper firmwares and Katapult bootloaders** from UI (or SSH) using a single, user-friendly config file: `~/printer_data/config/builder.cfg`.
 
 * Targets: **Klipper** (firmware) and **Katapult** (bootloader)
 * Flash methods supported: **CAN** (Katapult), **USB** (Katapult), **microSD** (manual)
 * Output: versioned artifacts under the repo’s `artifacts/` directory
-* Optional: print **flash commands as SSH** lines or **as G-code** via `RUN_SHELL_COMMAND` (works from Mainsail buttons)
+* Optional: print **flash commands as SSH** lines or **as G-code** via `RUN_SHELL_COMMAND` (works from UI buttons)
 
-> Recommended environment: MainsailOS.
+> Recommended environment: Web UI.
 
 ---
 
@@ -29,6 +29,9 @@ Helper toolkit to **build and flash Klipper firmwares and Katapult bootloaders**
 The author(s) of this repository are not responsible for its use or any consequences that may arise from it.
 If you download and use the repository, you do so at your own discretion and risk.
 
+> [!WARNING] 
+> This tool does not prevent you from thinking, it just saves you work. For security reasons, scripts are not launched automatically.
+> Always remember to check the commands and compare them with other guides.
 ---
 
 
@@ -40,22 +43,13 @@ cd ~
 git clone https://github.com/Inderlard/macro-builder
 ```
 
-2. Ensure the scripts are executable:
-
-```bash
-chmod +x ~/macro-builder/build_klipper.sh
-chmod +x ~/macro-builder/build_katapult.sh
-chmod +x ~/macro-builder/tools/new_config_wizard.sh
-chmod +x ~/macro-builder/tools/install.sh
-```
-
-3. Run the installer:
+2. Run the installer:
 
 ```bash
 bash ~/macro-builder/tools/install.sh
 ```
 
-4. Restart Klipper after install:
+3. Restart Klipper after install:
 
 ```bash
 sudo systemctl restart klipper
@@ -72,18 +66,9 @@ cd ~
 git clone https://github.com/Inderlard/macro-builder
 ```
 
-2. Ensure the scripts are executable:
+2. Create `~/printer_data/config/builder_macros.cfg` with (this configuration)[https://github.com/Inderlard/macro-builder/blob/main/examples/builder_macros.cfg]
 
-```bash
-chmod +x ~/macro-builder/build_klipper.sh
-chmod +x ~/macro-builder/build_katapult.sh
-chmod +x ~/macro-builder/tools/new_config_wizard.sh
-chmod +x ~/macro-builder/tools/install.sh
-```
-
-3. Create `~/printer_data/config/builder_macros.cfg` with (this configuration)[https://github.com/Inderlard/macro-builder/blob/main/examples/builder_macros.cfg]
-
-> Optionally (recommaned) you can hide these two shell backends (not shown as buttons) in mainsail:
+> Optionally (recommaned) you can hide these two shell backends (not shown as buttons) in UI:
 >   `FLASH_CAN` and `FLASH_USB` (type `gcode_shell_command`)
 
 4. Include the macros at the **top** of `~/printer_data/config/printer.cfg`:
@@ -117,7 +102,7 @@ primary_branch: main
 ## What the Automatic Install Generates
 
 * `~/printer_data/config/builder_macros.cfg`
-  Exposes buttons/macros in Mainsail:
+  Exposes buttons/macros in Web UI:
 
   * `BUILDER_KLIPPER_BUILD` / `BUILDER_KLIPPER_SHOW`
   * `BUILDER_KATAPULT_BUILD` / `BUILDER_KATAPULT_SHOW`
@@ -191,7 +176,7 @@ It drives **both** builders via section headers:
 * `flash terminal:` `ssh` | `gcode_shell`
 
   * `ssh` → prints Python commands you can paste in a shell
-  * `gcode_shell` → prints `RUN_SHELL_COMMAND` lines you can send from Mainsail
+  * `gcode_shell` → prints `RUN_SHELL_COMMAND` lines you can send from Web UI
 
 **Example (edit to your needs):**
 
@@ -226,7 +211,7 @@ mcu_alias1: Fang2
 flash terminal: ssh
 ```
 
-**How to run from Mainsail:**
+**How to run from Web UI:**
 
 * `BUILDER_KLIPPER_BUILD` → compiles all `[klipper …]` sections and prints suggested flash commands
 * `BUILDER_KLIPPERT_SHOW` → shows the last summary (`~/printer_data/system/builder_klipper_last.txt`)
@@ -240,7 +225,7 @@ flash terminal: ssh
   python3 ~/katapult/scripts/flash_can.py -i can0 -u <UUID> -f <bin>
   python3 ~/katapult/scripts/flashtool.py -d /dev/serial/by-id/<...> -f <bin>
   ```
-* **From Mainsail via G-code**:
+* **From Web UI via G-code**:
 
   ```
   RUN_SHELL_COMMAND CMD=FLASH_CAN  PARAMS="-i can0 -u <UUID> -f <bin>"
@@ -266,7 +251,7 @@ You are free to use, modify, and distribute under the terms of the GPLv3. A copy
 
 * “No configuration was saved” after `menuconfig`
   → Re-run the wizard and **press `S` (Save)** before exiting. The wizard also checks for repo `.config`.
-* Mainsail doesn’t show flash backends as buttons
+* Web UI doesn’t show flash backends as buttons
   → That’s intended: `FLASH_CAN` / `FLASH_USB` are `gcode_shell_command` (hidden). Use the BUILD/SHOW macros instead.
 * CAN UUIDs or USB serial not detected
   → Ensure your `printer.cfg` has `[mcu <alias>]` sections with `canbus_uuid:` or `serial:` set. Use `mcu_alias:` keys in `builder.cfg` to match them.

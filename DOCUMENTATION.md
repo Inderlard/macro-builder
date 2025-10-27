@@ -121,7 +121,7 @@ The builders don’t flash automatically; they **print** commands tailored to ea
 
   * `ssh` mode:
     `python3 ~/katapult/scripts/flash_can.py -i can0 -u <UUID> -f <bin>`
-  * `gcode_shell` mode (usable from Mainsail macros):
+  * `gcode_shell` mode (usable from UI macros):
     `RUN_SHELL_COMMAND CMD=FLASH_CAN PARAMS="-i can0 -u <UUID> -f <bin>"`
 
 * For `type: usb`
@@ -193,7 +193,7 @@ flash terminal: ssh
 
 * **G-code vs SSH output**
   Per-section control via `flash terminal:`.
-  `gcode_shell` prints `RUN_SHELL_COMMAND …` lines you can send from Mainsail.
+  `gcode_shell` prints `RUN_SHELL_COMMAND …` lines you can send from UI.
 
 * **Multiple sections**
   You can define many `[klipper …]` / `[katapult …]` blocks. Each produces its own artifacts and commands.

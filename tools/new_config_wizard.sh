@@ -1,58 +1,19 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# ---------- load shared lib to reuse parser & paths ----------
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-source "${SCRIPT_DIR}/libbuilder.sh" || { echo "ERROR: cannot load libbuilder.sh"; exit 1; }
-
-
 # ---------- portable paths ----------
-# Repositories (where menuconfig runs)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 KLIP_REPO="${HOME}/klipper"
 KATA_REPO="${HOME}/katapult"
-
-# User-defined configs root from [configs] path: ... in builder.cfg
-CONFIGS_ROOT="${CFG_USER_ROOT}"                     # provided by libbuilder.sh
-DEST_KLIP="${CFG_USER_BASE_KLIPPER}"                # .../klipper
-DEST_KATA="${CFG_USER_BASE_KATAPULT}"               # .../katapult
-
+DEST_KLIP="${SCRIPT_DIR}/configs/klipper"
+DEST_KATA="${SCRIPT_DIR}/configs/katapult"
 
 # ---------- helpers ----------
 need() { command -v "$1" >/dev/null 2>&1 || { echo "ERROR: '$1' is required."; exit 1; }; }
 trim() { sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'; }
 
 need make
-# Ensure we have a [configs] path; if missing, ask user and append it to builder.cfg
-ensure_directory "$(dirname "$BUILD_CFG")"
-
-if ! has_configs_section; then
-  echo
-  echo "No [configs] section found in: $BUILD_CFG"
-  default_path="${HOME}/printer_data/config/macro-builder/configs"
-  read -rp "Enter configs root path [${default_path}]: " ans
-  ans="${ans:-$default_path}"
-
-  # Expand ~ and env vars
-  expanded_path="$(bash -lc "echo ${ans}")"
-
-  {
-    echo
-    echo "[configs]"
-    echo "path: ${expanded_path}"
-  } >> "$BUILD_CFG"
-
-  echo "Written [configs] path to builder.cfg: ${expanded_path}"
-
-  # Refresh for current run
-  CONFIGS_ROOT="${expanded_path}"
-  DEST_KLIP="${CONFIGS_ROOT}/klipper"
-  DEST_KATA="${CONFIGS_ROOT}/katapult"
-fi
-
-# Create target folders (first run)
-mkdir -p "${CONFIGS_ROOT}" "${DEST_KLIP}" "${DEST_KATA}"
-
-
+mkdir -p "${DEST_KLIP}" "${DEST_KATA}"
 
 echo "==============================="
 echo "  macro-builder: Config Wizard"

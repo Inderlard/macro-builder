@@ -6,7 +6,7 @@
 
 set -Eeuo pipefail
 
-# Merge stderr into stdout so Mainsail prints in order
+# Merge stderr into stdout so UI prints in order
 exec 2>&1
 
 
@@ -48,7 +48,7 @@ build_katapult_target() {
     
     # Resolve and validate config path
     local resolved_config
-    resolved_config="$(resolve_config_2tier "$cfg" "$CFG_BASE" "$CFG_USER_BASE_KATAPULT")"
+    resolved_config="$(resolve_config_path "$cfg" "$CFG_BASE")"
     validate_file "$resolved_config" "Katapult configuration"
     
     # Copy configuration and build
@@ -173,7 +173,7 @@ main() {
     rm -f "$summary_file"
     
     log_success "Build summary saved to: $LOG_SUMMARY"
-    log_info "Use 'BUILDER_KATAPULT_SHOW' in Mainsail to view commands"
+    log_info "Use 'BUILDER_KATAPULT_SHOW' in UI to view commands"
 }
 
 ### === SCRIPT ENTRY POINT === ###

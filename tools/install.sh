@@ -21,7 +21,7 @@ echo "== macro-builder installer =="
 # 1.a) gcode_shell_command (Klipper extra)
 if [[ ! -f "${HOME}/klipper/klippy/extras/gcode_shell_command.py" ]]; then
   echo "ERROR: Klipper does not have 'gcode_shell_command'."
-  echo "-> Update Klipper via Mainsail (Machine > Updates) or KIAUH, then retry."
+  echo "-> Update Klipper via Web UI (Machine > Updates) or KIAUH, then retry."
   exit 1
 fi
 
@@ -137,7 +137,7 @@ echo "[5/6] builder.cfg created at ${BUILDER_CFG} (backup saved if existed)."
 # -------------------------------------------------
 # 6) Hide non-user macros (buttons)
 # -------------------------------------------------
-# In Mainsail, ONLY 'gcode_macro' blocks become buttons.
+# In Web UI, ONLY 'gcode_macro' blocks become buttons.
 # FLASH_CAN / FLASH_USB are 'gcode_shell_command', so they do not show as buttons.
 echo "[6/6] Flash backends are gcode_shell_command (not shown as buttons)."
 

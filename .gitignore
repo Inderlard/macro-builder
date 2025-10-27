@@ -1,0 +1,17 @@
+# Build artifacts
+artifacts/
+artifacts/**
+
+# User-generated configs
+configs/klipper/*.config
+configs/katapult/*.config
+
+# Checksums
+artifacts/**/*.sha256
+
+# Temp/backups
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
