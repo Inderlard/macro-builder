@@ -167,10 +167,9 @@ parse_builder_config() {
         fi
         [[ -z "$current_section" ]] && continue
 
-        # key: value
-        IFS=':' read -r key value <<< "$line"
-        key="$(string_trim "$(string_to_lower "$key")")"
-        value="$(string_trim "$value")"
+        # key: value  (split only on FIRST colon to preserve paths/UUIDs)
+        key="$(string_trim "$(string_to_lower "${line%%:*}")")"
+        value="$(string_trim "${line#*:}")"
 
         case "$key" in
             name|config|out|type)
