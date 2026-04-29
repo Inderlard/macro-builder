@@ -47,44 +47,40 @@ else
   bin_name="Katapult"
 fi
 
-# ---------- run menuconfig with robust save detection ----------
-TMP_CFG="$(mktemp -t mb_cfg.XXXXXX)"
-cleanup() { rm -f "${TMP_CFG}" 2>/dev/null || true; }
-trap cleanup EXIT
-
+# ---------- run menuconfig ----------
 echo
 echo "Launching '${bin_name} make menuconfig'..."
 echo "Tips:"
 echo "  • Configure your MCU options."
-echo "  • Press 'S' to Save (choose a filename), then OK and Exit."
-echo "  • If you quit with 'q' → 'Yes', some builds save to '.config' in the repo."
+echo "  • Save and Exit when done."
 echo
+
+# Ensure curses can detect the terminal (fixes 'setupterm: could not find terminal')
+export TERM="${TERM:-xterm-256color}"
 
 pushd "${REPO}" >/dev/null
 
 # Clean minimal to avoid stale config
 ${clean_cmd} >/dev/null 2>&1 || true
 
-# Try to write to a temp file; if UI ignores KCONFIG_CONFIG, it will write to './.config'
-KCONFIG_CONFIG="${TMP_CFG}" make menuconfig || {
+# Run menuconfig; kconfiglib writes to .config in the repo
+make menuconfig || {
   echo
   echo "ERROR: 'make menuconfig' failed."
-  echo "If you saw a dialog error, install ncurses:"
-  echo "  sudo apt-get update && sudo apt-get install -y libncurses5-dev whiptail"
+  echo "If you saw a curses/terminal error, make sure you are running"
+  echo "this script inside an interactive SSH session (not piped/automated)."
+  echo "Also try: export TERM=xterm-256color"
   popd >/dev/null
   exit 1
 }
 
-# Prefer temp file; fallback to repo .config
-if [[ -s "${TMP_CFG}" ]]; then
-  SRC_CFG="${TMP_CFG}"
-elif [[ -s ".config" ]]; then
+if [[ -s ".config" ]]; then
   SRC_CFG="${REPO}/.config"
 else
   popd >/dev/null
   echo
-  echo "ERROR: No configuration was saved."
-  echo "Please re-run and press 'S' (Save) before exiting."
+  echo "ERROR: No configuration was saved (.config not found)."
+  echo "Please re-run and save before exiting menuconfig."
   exit 1
 fi
 
