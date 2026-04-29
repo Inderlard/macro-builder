@@ -5,8 +5,41 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 KLIP_REPO="${HOME}/klipper"
 KATA_REPO="${HOME}/katapult"
-DEST_KLIP="${SCRIPT_DIR}/configs/klipper"
-DEST_KATA="${SCRIPT_DIR}/configs/katapult"
+BUILD_CFG="${HOME}/printer_data/config/builder.cfg"
+
+# ---------- resolve data dir (mirrors libbuilder get_data_dir logic) ----------
+# Reads [configs] path: from builder.cfg; falls back to default outside the git repo.
+DEFAULT_DATA_DIR="${HOME}/printer_data/config/macro-builder"
+
+_get_data_dir() {
+    local data_dir="" in_configs=false line=""
+    if [[ -f "${BUILD_CFG}" ]]; then
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            line="${line%%#*}"
+            line="${line#"${line%%[![:space:]]*}"}"
+            line="${line%"${line##*[![:space:]]}"}"
+            [[ -z "$line" ]] && continue
+            local line_lower="${line,,}"
+            if [[ "$line_lower" == "[configs]" ]]; then in_configs=true; continue; fi
+            if [[ "$line" =~ ^\[.*\]$ ]]; then in_configs=false; continue; fi
+            if $in_configs; then
+                local key="${line%%:*}" val="${line#*:}"
+                key="${key#"${key%%[![:space:]]*}"}"; key="${key%"${key##*[![:space:]]}"}"
+                val="${val#"${val%%[![:space:]]*}"}"; val="${val%"${val##*[![:space:]]}"}"
+                key="${key,,}"
+                if [[ "$key" == "path" && -n "$val" ]]; then
+                    data_dir="${val/#\~/${HOME}}"
+                    break
+                fi
+            fi
+        done < "${BUILD_CFG}"
+    fi
+    printf '%s' "${data_dir:-${DEFAULT_DATA_DIR}}"
+}
+
+DATA_DIR="$(_get_data_dir)"
+DEST_KLIP="${DATA_DIR}/configs/klipper"
+DEST_KATA="${DATA_DIR}/configs/katapult"
 
 # ---------- helpers ----------
 need() { command -v "$1" >/dev/null 2>&1 || { echo "ERROR: '$1' is required."; exit 1; }; }

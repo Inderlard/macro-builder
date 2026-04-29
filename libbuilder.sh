@@ -16,6 +16,10 @@ readonly PRINTER_CFG="${HOME_DIR}/printer_data/config/printer.cfg"
 readonly BUILD_CFG="${HOME_DIR}/printer_data/config/builder.cfg"
 readonly SYSTEM_DIR="${HOME_DIR}/printer_data/system"
 
+# Default external data root (outside the git repo — avoids Moonraker "dirty repo" warnings).
+# Overridden by [configs] path: in builder.cfg
+readonly DEFAULT_DATA_DIR="${HOME_DIR}/printer_data/config/macro-builder"
+
 # Build types
 readonly BUILD_TYPE_KLIPPER="klipper"
 readonly BUILD_TYPE_KATAPULT="katapult"
@@ -86,6 +90,40 @@ resolve_config_path() {
     else
         printf '%s/%s' "$base" "$value"
     fi
+}
+
+# Read [configs] path: from builder.cfg; expand ~ and fall back to DEFAULT_DATA_DIR.
+# All user data (configs + artifacts) lives here, outside the git repo.
+get_data_dir() {
+    local data_dir=""
+    if [[ -f "$BUILD_CFG" ]]; then
+        local in_configs_section=false
+        local line=""
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            line="${line%%#*}"
+            line="$(string_trim "$line")"
+            [[ -z "$line" ]] && continue
+            if [[ "${line,,}" == "[configs]" ]]; then
+                in_configs_section=true
+                continue
+            fi
+            if [[ "$line" =~ ^\[.*\]$ ]]; then
+                in_configs_section=false
+                continue
+            fi
+            if $in_configs_section; then
+                local key value
+                key="$(string_trim "$(string_to_lower "${line%%:*}")")"
+                value="$(string_trim "${line#*:}")"
+                if [[ "$key" == "path" && -n "$value" ]]; then
+                    # Expand leading ~
+                    data_dir="${value/#\~/${HOME_DIR}}"
+                    break
+                fi
+            fi
+        done < "$BUILD_CFG"
+    fi
+    printf '%s' "${data_dir:-${DEFAULT_DATA_DIR}}"
 }
 
 # Current date as DD_MM_YYYY

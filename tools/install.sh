@@ -80,17 +80,28 @@ cat > "${BUILDER_CFG}" <<'EOF'
 # =========================
 # macro-builder: builder.cfg
 # =========================
+
+# ===== CONFIG PATH =====
+# Where macro-builder stores user configs and build artifacts.
+# This directory MUST be outside ~/macro-builder/ so Moonraker
+# does not flag the repo as "dirty" after saving menuconfig files.
+# Default (used when this section is absent or path is empty):
+#   ~/printer_data/config/macro-builder
+[configs]
+path: ~/printer_data/config/macro-builder
+
+# ===========================
 # This single config drives BOTH builders:
 #   - [klipper <NAME>] sections build Klipper firmwares
 #   - [katapult <NAME>] sections build Katapult bootloaders
 #
 # Fields (per section):
 #   name:              Friendly name for the artifact/versioned file names.
-#   config:            Either a bare filename searched under:
-#                        ~/macro-builder/configs/klipper/   (for [klipper ...])
-#                        ~/macro-builder/configs/katapult/  (for [katapult ...])
-#                      or any path (absolute, or relative to the macro-builder root).
-#   out:               Output filename (the fixed link stored in artifacts folder).
+#   config:            Bare filename searched under:
+#                        <path>/configs/klipper/   (for [klipper ...])
+#                        <path>/configs/katapult/  (for [katapult ...])
+#                      or an absolute path.
+#   out:               Output filename stored in <path>/artifacts/klipper|katapult/.
 #   type:              can | usb | sd
 #   mcu_alias, mcu_alias1, ... :
 #                      One or more aliases matching [mcu <alias>] sections in printer.cfg.
@@ -100,7 +111,7 @@ cat > "${BUILDER_CFG}" <<'EOF'
 #
 # Notes:
 # - CAN sections will print 'flash_can.py' suggestions (or RUN_SHELL_COMMAND via gcode).
-# - USB sections will print 'flashtool.py' (or legacy 'flashtool.py') suggestions (or RUN_SHELL_COMMAND via gcode).
+# - USB sections will print 'flash_usb.py' / 'flashtool.py' suggestions (or RUN_SHELL_COMMAND via gcode).
 # - SD sections print manual steps (copy to microSD root and power-cycle).
 #
 # ------- EXAMPLE: KLIPPER over CAN (two toolheads) -------
@@ -135,13 +146,15 @@ EOF
 echo "[3/6] builder.cfg created at ${BUILDER_CFG} (backup saved if existed)."
 
 # -------------------------------------------------
-# 5) Create artifact and config directories
+# 5) Create external data directories (outside git repo)
 # -------------------------------------------------
-mkdir -p "${REPO_ROOT}/configs/klipper" \
-         "${REPO_ROOT}/configs/katapult" \
-         "${REPO_ROOT}/artifacts/klipper" \
-         "${REPO_ROOT}/artifacts/katapult"
-echo "[5/6] Created configs/ and artifacts/ directories."
+# Default path; matches [configs] path: in the generated builder.cfg above.
+MB_DATA_DIR="${HOME}/printer_data/config/macro-builder"
+mkdir -p "${MB_DATA_DIR}/configs/klipper" \
+         "${MB_DATA_DIR}/configs/katapult" \
+         "${MB_DATA_DIR}/artifacts/klipper" \
+         "${MB_DATA_DIR}/artifacts/katapult"
+echo "[5/6] Created data directories at ${MB_DATA_DIR}/ (configs + artifacts)."
 
 # -------------------------------------------------
 # 6) Hide non-user macros (buttons)
@@ -154,5 +167,6 @@ echo
 echo "=== Done ==="
 echo "• builder_macros.cfg: ${BUILDER_MACROS} (copied from repo examples and included in printer.cfg)"
 echo "• builder.cfg:        ${BUILDER_CFG} (edit to suit your setup)"
+echo "• configs + artifacts: ${MB_DATA_DIR}/ (outside the git repo — Moonraker stays clean)"
 echo "• Restart Klipper after installation:"
 echo "    sudo systemctl restart klipper"

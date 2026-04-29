@@ -25,9 +25,12 @@ readonly BUILD_TYPE="klipper"
 
 # Repos and paths
 readonly REPO_DIR="${HOME}/klipper"
-readonly CFG_BASE="${BASE_DIR}/configs/klipper"
-readonly OUT_DIR="${BASE_DIR}/artifacts/klipper"
 readonly LOG_SUMMARY="${SYSTEM_DIR}/builder_klipper_last.txt"
+
+# User data lives outside the git repo to keep Moonraker happy
+DATA_DIR="$(get_data_dir)"
+readonly CFG_BASE="${DATA_DIR}/configs/klipper"
+readonly OUT_DIR="${DATA_DIR}/artifacts/klipper"
 
 
 ### === KLIPPER-SPECIFIC FUNCTIONS === ###

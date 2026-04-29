@@ -24,9 +24,12 @@ readonly BUILD_TYPE="katapult"
 
 # Repos and paths
 readonly REPO_DIR="${HOME}/katapult"
-readonly CFG_BASE="${BASE_DIR}/configs/katapult"
-readonly OUT_DIR="${BASE_DIR}/artifacts/katapult"
 readonly LOG_SUMMARY="${SYSTEM_DIR}/builder_katapult_last.txt"
+
+# User data lives outside the git repo to keep Moonraker happy
+DATA_DIR="$(get_data_dir)"
+readonly CFG_BASE="${DATA_DIR}/configs/katapult"
+readonly OUT_DIR="${DATA_DIR}/artifacts/katapult"
 
 ### === KATAPULT-SPECIFIC FUNCTIONS === ###
 
