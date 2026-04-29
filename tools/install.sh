@@ -31,8 +31,8 @@ HAS_FLASH_CAN=false
 HAS_FLASH_USB=false
 
 if [[ -f "${KATA_DIR}/scripts/flash_can.py" ]]; then HAS_FLASH_CAN=true; fi
-# Accept either flashtool.py (preferred upstream) or legacy flashtool.py
-if [[ -f "${KATA_DIR}/scripts/flashtool.py" ]] || [[ -f "${KATA_DIR}/scripts/flashtool.py" ]]; then HAS_FLASH_USB=true; fi
+# Accept either flash_usb.py (preferred upstream) or legacy flashtool.py
+if [[ -f "${KATA_DIR}/scripts/flash_usb.py" ]] || [[ -f "${KATA_DIR}/scripts/flashtool.py" ]]; then HAS_FLASH_USB=true; fi
 
 if [[ ! -d "${KATA_DIR}" || "${HAS_FLASH_CAN}" != true || "${HAS_FLASH_USB}" != true ]]; then
   echo "ERROR: Katapult is not installed correctly."
@@ -67,9 +67,9 @@ fi
 if ! grep -qE '^\s*\[include\s+builder_macros\.cfg\]\s*$' "${PRINTER_CFG}"; then
   cp -f "${PRINTER_CFG}" "${PRINTER_CFG}.bak.$(date +%s)"
   printf "[include builder_macros.cfg]\n\n%s" "$(cat "${PRINTER_CFG}")" > "${PRINTER_CFG}"
-  echo "[4/6] Installed builder_macros.cfg from examples and included it at the top of printer.cfg (backup created)."
+  echo "[2/6] Installed builder_macros.cfg from examples and included it at the top of printer.cfg (backup created)."
 else
-  echo "[4/6] builder_macros.cfg installed from examples; printer.cfg already includes it."
+  echo "[2/6] builder_macros.cfg installed from examples; printer.cfg already includes it."
 fi
 
 # -------------------------------------------------
@@ -132,7 +132,16 @@ mcu_alias: ebb1
 mcu_alias1: ebb2
 flash terminal: ssh
 EOF
-echo "[5/6] builder.cfg created at ${BUILDER_CFG} (backup saved if existed)."
+echo "[3/6] builder.cfg created at ${BUILDER_CFG} (backup saved if existed)."
+
+# -------------------------------------------------
+# 5) Create artifact and config directories
+# -------------------------------------------------
+mkdir -p "${REPO_ROOT}/configs/klipper" \
+         "${REPO_ROOT}/configs/katapult" \
+         "${REPO_ROOT}/artifacts/klipper" \
+         "${REPO_ROOT}/artifacts/katapult"
+echo "[5/6] Created configs/ and artifacts/ directories."
 
 # -------------------------------------------------
 # 6) Hide non-user macros (buttons)
