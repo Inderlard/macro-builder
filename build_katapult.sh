@@ -161,10 +161,10 @@ main() {
         done
         
         echo
-        echo "=== CLEANUP COMMANDS (keep last 10) ==="
+        echo "=== ARTIFACT CLEANUP (keeping last 10 per target) ==="
         for section in "${sections[@]}"; do
             local name="${builder_config[${section}.name]:-$section}"
-            echo "ls -1t ${OUT_DIR}/katapult-${name}-*.bin 2>/dev/null | tail -n +11 | xargs -r rm -f"
+            cleanup_old_artifacts "$OUT_DIR" "katapult-${name}-*.bin" 10
         done
     } > "$summary_file"
     
