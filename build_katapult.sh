@@ -173,9 +173,10 @@ main() {
             local flash_type="${builder_config[${section}.type]:-can}"
             local flash_mode="${builder_config[${section}.flash_mode]:-ssh}"
             local aliases="${builder_config[${section}.aliases]:-}"
+            local new_flash_mode="${builder_config[${section}.new_flash_mode]:-ssh}"
             local binary_path="${OUT_DIR}/${output_file}"
             generate_flash_sequence "$name" "$binary_path" "$flash_type" "$flash_mode" \
-                "$aliases" can_uuid_map usb_serial_map "install"
+                "$aliases" can_uuid_map usb_serial_map "install" "$new_flash_mode"
             echo
         done
     } > "$install_tmp"

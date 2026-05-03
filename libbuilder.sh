@@ -171,7 +171,7 @@ cleanup_old_artifacts() {
 ### === BUILDER.CFG PARSER === ###
 # Fills:
 #   - sections_arr: array with section names for given build_type ("klipper"/"katapult")
-#   - config_map:   assoc array with keys: "<SECTION>.name" | .config | .out | .type | .aliases | .flash_mode | .rename_binary
+#   - config_map:   assoc array with keys: "<SECTION>.name" | .config | .out | .type | .aliases | .flash_mode
 parse_builder_config() {
     local build_type="$1"
     local -n sections_arr="$2"
@@ -210,7 +210,7 @@ parse_builder_config() {
         value="$(string_trim "${line#*:}")"
 
         case "$key" in
-            name|config|out|type|rename_binary)
+            name|config|out|type)
                 config_map["${current_section}.${key}"]="$value"
                 ;;
             mcu_alias|mcu_alias*)
@@ -223,6 +223,13 @@ parse_builder_config() {
                     mode="ssh"
                 fi
                 config_map["${current_section}.flash_mode"]="$mode"
+                ;;
+            new\ install\ flash\ terminal)
+                local new_mode="$(string_to_lower "$value")"
+                if [[ "$new_mode" != "gcode_shell" && "$new_mode" != "ssh" ]]; then
+                    new_mode="ssh"
+                fi
+                config_map["${current_section}.new_flash_mode"]="$new_mode"
                 ;;
         esac
     done < "$BUILD_CFG"
@@ -300,13 +307,14 @@ generate_versioned_filename() {
 #   $1  section_name
 #   $2  binary_path        — the .bin file to flash
 #   $3  flash_type         — can | usb | sd
-#   $4  flash_mode         — ssh | gcode_shell
+#   $4  flash_mode         — ssh | gcode_shell  (used for update; ignored for install non-SD)
 #   $5  aliases_str        — space-separated alias list
 #   $6  nameref: can_map
 #   $7  nameref: usb_map
 #   $8  action             — "install" | "update"
-#                            install → uses katapult.bin + bootloader-entry step
-#                            update  → uses deployer.bin, no bootloader-entry step
+#                            install → fresh install via USB/DFU (or SD); no CAN commands
+#                            update  → uses deployer.bin via existing CAN/USB Katapult
+#   $9  new_flash_mode     — ssh | gcode_shell  (controls install non-SD flash command)
 generate_flash_sequence() {
     local section_name="$1"
     local binary_path="$2"
@@ -316,22 +324,54 @@ generate_flash_sequence() {
     local -n _seq_can_map="$6"
     local -n _seq_usb_map="$7"
     local action="${8:-install}"
+    local new_flash_mode="${9:-ssh}"
 
     local mode_label="SSH"
     [[ "$flash_mode" == "gcode_shell" ]] && mode_label="GCODE"
+
+    local new_mode_label="SSH"
+    [[ "$new_flash_mode" == "gcode_shell" ]] && new_mode_label="GCODE"
 
     local aliases=()
     if [[ -n "$aliases_str" ]]; then
         IFS=' ' read -r -a aliases <<< "$aliases_str"
     fi
 
+    # ── FRESH INSTALL path ────────────────────────────────────────────────────
+    # A board without Katapult cannot be reached via CAN/USB-Katapult.
+    # It must be flashed initially via USB/DFU (or microSD).
     if [[ "$action" == "install" ]]; then
-        printf '# [%s] — INSTALAR NUEVO BOOTLOADER KATAPULT (%s via %s)\n' \
-            "$section_name" "$mode_label" "${flash_type^^}"
-    else
-        printf '# [%s] — ACTUALIZAR FIRMWARE EXISTENTE (%s via %s)\n' \
-            "$section_name" "$mode_label" "${flash_type^^}"
+        # SD install: keep the existing microSD instructions unchanged
+        if [[ "$flash_type" == "sd" ]]; then
+            printf '# [%s] — INSTALL NEW KATAPULT BOOTLOADER (microSD)\n' "$section_name"
+            printf 'sudo service klipper stop\n'
+            printf '# 1) Copy %s to the ROOT of a FAT32 microSD.\n' "$binary_path"
+            printf '# 2) Insert the microSD into the board and power-cycle.\n'
+            printf '# 3) Many boards rename the file to .CUR after flashing.\n'
+            printf 'sudo service klipper start\n'
+            return
+        fi
+
+        # Non-SD install: generic USB/DFU bootloader flashing
+        printf '# [%s] — INSTALL NEW KATAPULT BOOTLOADER (%s via USB/DFU)\n' \
+            "$section_name" "$new_mode_label"
+        printf 'sudo service klipper stop\n'
+        printf '# Put the board into Bootloader/DFU mode:\n'
+        printf '#   Hold BOOT button and press RESET (or use the board reset method).\n'
+        printf '#   Verify the device appears: dfu-util --list\n'
+        if [[ "$new_flash_mode" == "gcode_shell" ]]; then
+            printf '_FLASH_USB_BOARD SERIAL=<YOUR_SERIAL_ID> BIN=%s\n' "$binary_path"
+        else
+            printf 'python3 %s/katapult/scripts/flashtool.py -d /dev/serial/by-id/<YOUR_SERIAL_ID> -f %s\n' \
+                "$HOME_DIR" "$binary_path"
+        fi
+        printf 'sudo service klipper start\n'
+        return
     fi
+
+    # ── UPDATE path (existing Katapult present) ───────────────────────────────
+    printf '# [%s] — UPDATE EXISTING FIRMWARE (%s via %s)\n' \
+        "$section_name" "$mode_label" "${flash_type^^}"
 
     case "$flash_type" in
         can)
@@ -348,19 +388,6 @@ generate_flash_sequence() {
 
                 printf '\n# --- %s ---\n' "$alias"
                 printf 'sudo service klipper stop\n'
-
-                if [[ "$action" == "install" ]]; then
-                    # Bootloader entry: put MCU into DFU/Katapult mode via CAN reset
-                    if [[ -n "$uuid" ]]; then
-                        printf '# Entrar en modo bootloader (reset via Katapult):\n'
-                        printf 'python3 %s/katapult/scripts/flashtool.py -i can0 -u %s -r\n' \
-                            "$HOME_DIR" "$uuid"
-                    else
-                        printf '# Entrar en modo bootloader (reset via Katapult):\n'
-                        printf 'python3 %s/katapult/scripts/flashtool.py -i can0 -u {{%s_UUID}} -r\n' \
-                            "$HOME_DIR" "$tag"
-                    fi
-                fi
 
                 # Flash command
                 if [[ -n "$uuid" ]]; then
@@ -398,11 +425,6 @@ generate_flash_sequence() {
                 printf '\n# --- %s ---\n' "$alias"
                 printf 'sudo service klipper stop\n'
 
-                if [[ "$action" == "install" ]]; then
-                    printf '# Entrar en modo DFU (mantén BOOT pulsado y pulsa RESET, o usa el comando de reset):\n'
-                    printf '# dfu-util --list   # verificar que el dispositivo aparece en modo DFU\n'
-                fi
-
                 # Flash command
                 if [[ -n "$device" ]]; then
                     generate_usb_flash_command "$flash_mode" "$device" "$binary_path" "$alias"
@@ -423,18 +445,12 @@ generate_flash_sequence() {
             ;;
         sd)
             printf 'sudo service klipper stop\n'
-            if [[ "$action" == "install" ]]; then
-                printf '# 1) Copia %s a la RAÍZ de una microSD FAT32.\n' "$binary_path"
-                printf '# 2) Inserta la microSD en la placa y haz power-cycle.\n'
-                printf '# 3) Muchas placas renombran el archivo a .CUR tras flashear.\n'
-            else
-                printf '# 1) Copia %s a la RAÍZ de una microSD FAT32.\n' "$binary_path"
-                printf '# 2) Inserta la microSD en la placa y haz power-cycle.\n'
-            fi
+            printf '# 1) Copy %s to the ROOT of a FAT32 microSD.\n' "$binary_path"
+            printf '# 2) Insert the microSD into the board and power-cycle.\n'
             printf 'sudo service klipper start\n'
             ;;
         *)
-            printf '# [%s] tipo de flash desconocido: %s\n' "$section_name" "$flash_type"
+            printf '# [%s] unknown flash type: %s\n' "$section_name" "$flash_type"
             ;;
     esac
 }

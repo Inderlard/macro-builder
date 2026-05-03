@@ -189,6 +189,7 @@ type: can
 mcu_alias: ebb1
 mcu_alias1: ebb1
 flash terminal: ssh
+new install flash terminal: gcode_shell
 ```
 
 ---

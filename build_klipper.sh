@@ -40,7 +40,6 @@ build_klipper_target() {
     local name="$1"          # Configuration name
     local cfg="$2"           # Config file path
     local out_fixed="$3"     # Output filename
-    local rename_binary="$4" # Optional: rename final binary (without .bin extension)
     
     log_info "Building Klipper: $name"
     
@@ -92,19 +91,11 @@ build_klipper_target() {
     # Create checksum
     create_checksum "$versioned_path"
     
-    # Rename final binary if rename_binary is set
-    if [[ -n "$rename_binary" ]]; then
-        local renamed_output="${OUT_DIR}/${rename_binary}.bin"
-        cp -f "$fixed_output" "$renamed_output" || fatal_error "Failed to create renamed binary: $renamed_output"
-        log_info "  Renamed: $(basename "$renamed_output")"
-    fi
-    
     popd >/dev/null
     
     log_success "Built: $name"
     log_info "  Fixed: $(basename "$fixed_output")"
     log_info "  Versioned: $(basename "$versioned_path")"
-    [[ -n "$rename_binary" ]] && log_info "  SD-ready: ${rename_binary}.bin"
 }
 
 ### === MAIN EXECUTION FUNCTION === ###
@@ -133,14 +124,13 @@ main() {
         local name="${builder_config[${section}.name]:-$section}"
         local config_file="${builder_config[${section}.config]:-}"
         local output_file="${builder_config[${section}.out]:-}"
-        local rename_binary="${builder_config[${section}.rename_binary]:-}"
         
         if [[ -z "$config_file" || -z "$output_file" ]]; then
             log_error "Section '$section' missing config or out parameter"
             continue
         fi
         
-        build_klipper_target "$name" "$config_file" "$output_file" "$rename_binary"
+        build_klipper_target "$name" "$config_file" "$output_file"
     done
     
     # Parse printer configuration for flash commands
@@ -157,12 +147,7 @@ main() {
         for section in "${sections[@]}"; do
             local name="${builder_config[${section}.name]:-$section}"
             local output_file="${builder_config[${section}.out]:-}"
-            local rename_binary="${builder_config[${section}.rename_binary]:-}"
-            if [[ -n "$rename_binary" ]]; then
-                echo "${name}: ${OUT_DIR}/${rename_binary}.bin  (renamed from ${output_file})"
-            else
-                echo "${name}: ${OUT_DIR}/${output_file}"
-            fi
+            echo "${name}: ${OUT_DIR}/${output_file}"
         done
         
         echo
@@ -170,32 +155,14 @@ main() {
         for section in "${sections[@]}"; do
             local name="${builder_config[${section}.name]:-$section}"
             local output_file="${builder_config[${section}.out]:-}"
-            local rename_binary="${builder_config[${section}.rename_binary]:-}"
             local flash_type="${builder_config[${section}.type]:-can}"
             local flash_mode="${builder_config[${section}.flash_mode]:-ssh}"
             local aliases="${builder_config[${section}.aliases]:-}"
+            local binary_path="${OUT_DIR}/${output_file}"
             
-            # Use renamed binary path for flash commands if rename_binary is set
-            local effective_filename="${output_file}"
-            if [[ -n "$rename_binary" ]]; then
-                effective_filename="${rename_binary}.bin"
-            fi
-            local binary_path="${OUT_DIR}/${effective_filename}"
-            
-            # For SD type with rename_binary, add explicit SD instructions
-            if [[ "$flash_type" == "sd" && -n "$rename_binary" ]]; then
-                printf '# [%s] via microSD (manual):\n' "$name"
-                printf '# NOTA: Esta placa requiere el nombre de archivo exacto "%s.bin"\n' "$rename_binary"
-                printf '1) Copia %s a la RAÍZ de una microSD FAT32.\n' "$binary_path"
-                printf '   El archivo DEBE llamarse "%s.bin" para que la placa lo reconozca.\n' "$rename_binary"
-                printf '2) Inserta la microSD en la placa y haz power-cycle.\n'
-                printf '3) Muchas placas renombran el archivo a .CUR tras flashear.\n'
-                echo
-            else
-                generate_flash_commands "$name" "$binary_path" "$flash_type" "$flash_mode" \
-                    "$aliases" can_uuid_map usb_serial_map
-                echo
-            fi
+            generate_flash_commands "$name" "$binary_path" "$flash_type" "$flash_mode" \
+                "$aliases" can_uuid_map usb_serial_map
+            echo
         done
         
         echo
