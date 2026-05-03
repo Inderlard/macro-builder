@@ -36,6 +36,15 @@ flash terminal: gcode_shell
 
 ---
 
+You must indicate the default data by adding a [configs] section with a path: /your/custom/path key in your builder.cfg. This ensures your configs and compiled artifacts are stored safely outside the git repository.
+
+Example:
+
+```ini
+[configs]
+path: ~/printer_data/config/macro-builder_configs
+```
+
 ## 2) Sections (Blocks)
 
 You can define two kinds of sections:

@@ -148,24 +148,24 @@ main() {
     local install_txt="${SYSTEM_DIR}/builder_katapult_install.txt"
     local update_txt="${SYSTEM_DIR}/builder_katapult_update.txt"
 
-    # ── TXT 1: INSTALAR NUEVO (usa katapult.bin) ──────────────────────────────
+    # ── TXT 1: INSTALL NEW BOOTLOADER (uses katapult.bin) ────────────────────
     local install_tmp
     install_tmp="$(mktemp -t kata_install.XXXXXX)"
     {
         echo "================================================================"
-        echo "  KATAPULT — INSTRUCCIONES: INSTALAR NUEVO BOOTLOADER"
-        echo "  Binario: katapult.bin"
-        echo "  Generado: $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "  KATAPULT — INSTRUCTIONS: INSTALL NEW BOOTLOADER"
+        echo "  Binary: katapult.bin"
+        echo "  Generated: $(date '+%Y-%m-%d %H:%M:%S')"
         echo "================================================================"
         echo
-        echo "BINARIOS GENERADOS:"
+        echo "GENERATED BINARIES:"
         for section in "${sections[@]}"; do
             local name="${builder_config[${section}.name]:-$section}"
             local output_file="${builder_config[${section}.out]:-}"
             echo "  ${name}: ${OUT_DIR}/${output_file}"
         done
         echo
-        echo "SECUENCIA DE COMANDOS:"
+        echo "COMMAND SEQUENCE:"
         echo
         for section in "${sections[@]}"; do
             local name="${builder_config[${section}.name]:-$section}"
@@ -182,24 +182,24 @@ main() {
     cp -f "$install_tmp" "$install_txt"
     rm -f "$install_tmp"
 
-    # ── TXT 2: ACTUALIZAR FIRMWARE EXISTENTE (usa deployer.bin) ───────────────
+    # ── TXT 2: UPDATE EXISTING FIRMWARE (uses deployer.bin) ──────────────────
     local update_tmp
     update_tmp="$(mktemp -t kata_update.XXXXXX)"
     {
         echo "================================================================"
-        echo "  KATAPULT — INSTRUCCIONES: ACTUALIZAR FIRMWARE EXISTENTE"
-        echo "  Binario: deployer.bin"
-        echo "  Generado: $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "  KATAPULT — INSTRUCTIONS: UPDATE EXISTING FIRMWARE"
+        echo "  Binary: deployer.bin"
+        echo "  Generated: $(date '+%Y-%m-%d %H:%M:%S')"
         echo "================================================================"
         echo
-        echo "BINARIOS GENERADOS:"
+        echo "GENERATED BINARIES:"
         for section in "${sections[@]}"; do
             local name="${builder_config[${section}.name]:-$section}"
             local output_file="${builder_config[${section}.out]:-}"
             echo "  ${name} (deployer): ${OUT_DIR}/${output_file%.bin}_deployer.bin"
         done
         echo
-        echo "SECUENCIA DE COMANDOS:"
+        echo "COMMAND SEQUENCE:"
         echo
         for section in "${sections[@]}"; do
             local name="${builder_config[${section}.name]:-$section}"
@@ -228,9 +228,9 @@ main() {
             echo "${name}: ${OUT_DIR}/${output_file}"
         done
         echo
-        echo "Ver instrucciones detalladas en:"
-        echo "  Instalar nuevo : $install_txt"
-        echo "  Actualizar     : $update_txt"
+        echo "See detailed instructions in:"
+        echo "  Install new    : $install_txt"
+        echo "  Update         : $update_txt"
         echo
         echo "=== ARTIFACT CLEANUP (keeping last 10 per target) ==="
         for section in "${sections[@]}"; do
@@ -241,9 +241,9 @@ main() {
     cp -f "$summary_file" "$LOG_SUMMARY"
     rm -f "$summary_file"
 
-    log_success "Instrucciones de instalación guardadas en: $install_txt"
-    log_success "Instrucciones de actualización guardadas en: $update_txt"
-    log_success "Resumen guardado en: $LOG_SUMMARY"
+    log_success "Installation instructions saved to: $install_txt"
+    log_success "Update instructions saved to: $update_txt"
+    log_success "Summary saved to: $LOG_SUMMARY"
     log_info "Use 'BUILDER_KATAPULT_SHOW' in UI to view commands"
 }
 
