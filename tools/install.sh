@@ -30,16 +30,16 @@ KATA_DIR="${HOME}/katapult"
 HAS_FLASH_CAN=false
 HAS_FLASH_USB=false
 
-if [[ -f "${KATA_DIR}/scripts/flash_can.py" ]]; then HAS_FLASH_CAN=true; fi
-# Accept either flash_usb.py (preferred upstream) or legacy flashtool.py
-if [[ -f "${KATA_DIR}/scripts/flash_usb.py" ]] || [[ -f "${KATA_DIR}/scripts/flashtool.py" ]]; then HAS_FLASH_USB=true; fi
+if [[ -f "${KATA_DIR}/scripts/flashtool.py" ]]; then HAS_FLASH_CAN=true; fi
+# Accept either flashtool.py (preferred upstream) or legacy flashtool.py
+if [[ -f "${KATA_DIR}/scripts/flashtool.py" ]] || [[ -f "${KATA_DIR}/scripts/flashtool.py" ]]; then HAS_FLASH_USB=true; fi
 
 if [[ ! -d "${KATA_DIR}" || "${HAS_FLASH_CAN}" != true || "${HAS_FLASH_USB}" != true ]]; then
   echo "ERROR: Katapult is not installed correctly."
   echo "-> Install with:"
   echo "     git clone https://github.com/Arksine/katapult.git ~/katapult"
   echo "   Ensure these exist:"
-  echo "     ~/katapult/scripts/flash_can.py"
+  echo "     ~/katapult/scripts/flashtool.py"
   echo "     ~/katapult/scripts/flashtool.py   # or legacy flashtool.py"
   exit 1
 fi
@@ -48,6 +48,9 @@ echo "[1/6] OK: gcode_shell_command and Katapult detected."
 
 # Ensure user config dir exists
 mkdir -p "${CFG_DIR}"
+
+# Install dependecies for render on ssh kitty terminal
+sudo apt-get install -y kitty-terminfo
 
 # -------------------------------------------------
 # 4) Install builder_macros.cfg from examples and include it
@@ -110,8 +113,8 @@ path: ~/printer_data/config/macro-builder
 #                      How to print the suggested flashing commands (N/A for sd).
 #
 # Notes:
-# - CAN sections will print 'flash_can.py' suggestions (or RUN_SHELL_COMMAND via gcode).
-# - USB sections will print 'flash_usb.py' / 'flashtool.py' suggestions (or RUN_SHELL_COMMAND via gcode).
+# - CAN sections will print 'flashtool.py' suggestions (or RUN_SHELL_COMMAND via gcode).
+# - USB sections will print 'flashtool.py' / 'flashtool.py' suggestions (or RUN_SHELL_COMMAND via gcode).
 # - SD sections print manual steps (copy to microSD root and power-cycle).
 #
 # ------- EXAMPLE: KLIPPER over CAN (two toolheads) -------

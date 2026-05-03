@@ -159,9 +159,25 @@ mcu_alias: my_alias_in_printer_cfg
 flash terminal: ssh   # or gcode_shell
 EOF
 else
-  echo "You can reference this Katapult config in builder.cfg like:"
-  echo
-  cat <<EOF
+  # Ask whether this is a regular update or a fresh USB install
+  install_type=""
+  while [[ -z "${install_type}" ]]; do
+    echo
+    echo "Is this a Katapult installation type:"
+    echo "  1) Update  (CAN/USB update of an existing Katapult install)"
+    echo "  2) Fresh Install  (first-time USB flash, skips CAN config)"
+    read -rp "Enter 1 or 2: " it_ans
+    case "${it_ans}" in
+      1) install_type="update" ;;
+      2) install_type="fresh" ;;
+      *) echo "Invalid choice. Try again." ;;
+    esac
+  done
+
+  if [[ "${install_type}" == "update" ]]; then
+    echo "You can reference this Katapult config in builder.cfg like:"
+    echo
+    cat <<EOF
 [katapult MY_MCU]
 name: MY_MCU
 config: ${outname}
@@ -171,6 +187,25 @@ mcu_alias: my_mcu_alias_in_printer_cfg
 # optional: mcu_alias1: another_alias
 flash terminal: ssh   # or gcode_shell
 EOF
+  else
+    # Fresh Install: prompt for a base name to embed in the 'name' field
+    fresh_base=""
+    while [[ -z "${fresh_base}" ]]; do
+      read -rp "Enter a short name for this board (e.g. ebb36, main_mcu): " fresh_base
+      fresh_base="$(echo "${fresh_base}" | trim)"
+      [[ -n "${fresh_base}" ]] || echo "Name cannot be empty."
+    done
+
+    echo "You can reference this Katapult Fresh Install config in builder.cfg like:"
+    echo
+    cat <<EOF
+[katapult ${fresh_base^^}_FRESH]
+name: ${fresh_base} fresh install
+config: ${outname}
+out: ${fresh_base}_fresh.bin
+flash terminal: ssh   # or gcode_shell
+EOF
+  fi
 fi
 
 echo

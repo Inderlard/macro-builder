@@ -14,12 +14,22 @@ Helper toolkit to **build and flash Klipper firmwares and Katapult bootloaders**
 > MCUs have a limited number of write cycles, so please bear this in mind; continuous updating is not recommended.
 ---
 
+## Documentation & Guides
+
+| Document | Description |
+|---|---|
+| [README.md](README.md) | Installation, usage overview and quick reference (this file) |
+| [DOCUMENTATION.md](DOCUMENTATION.md) | Full `builder.cfg` reference and field descriptions |
+| [SETUP_GUIDE.md](SETUP_GUIDE.md) | **CAN bus quick setup guide** — Candlelight → Katapult → Klipper, with board examples (EBB36, U2C, Monster 8) |
+
+---
+
 ## Dependencies
 
 * **[Klipper](https://github.com/Klipper3d/klipper)** with the **`gcode_shell_command`** extra available
   (file: `~/klipper/klippy/extras/gcode_shell_command.py`)
 * **[Katapult](https://github.com/Arksine/katapult)** repository (for flashing tools and Katapult builds)
-  (`~/katapult` with `scripts/flash_can.py` and `scripts/flashtool.py`)
+  (`~/katapult` with `scripts/flashtool.py` and `scripts/flashtool.py`)
 * **G-Code Shell Command**
   (You can install it from [kiauh](https://github.com/dw-0/kiauh) "4) [Advanced]" > "8) [G-Code Shell Command]")
 
@@ -226,7 +236,7 @@ flash terminal: ssh
 * **SSH** (copy/paste into terminal):
 
   ```
-  python3 ~/katapult/scripts/flash_can.py -i can0 -u <UUID> -f <bin>
+  python3 ~/katapult/scripts/flashtool.py -i can0 -u <UUID> -f <bin>
   python3 ~/katapult/scripts/flashtool.py -d /dev/serial/by-id/<...> -f <bin>
   ```
 * **From Web UI via G-code**:
@@ -284,11 +294,13 @@ There are several things to do:
 
 ---
 
-## Aknowledgments
+## Acknowledgments
 
 This script would not exist without [Klipper](https://github.com/Klipper3d/klipper), [Katapult](https://github.com/Arksine/katapult) and
 [Moonraker](https://github.com/Arksine/moonraker). 
 Many thanks to all contributors to these projects.
+
+Special thanks to the community at **[https://canbus.esoterical.online](https://canbus.esoterical.online)** for their outstanding CAN bus setup documentation, which served as the basis for [SETUP_GUIDE.md](SETUP_GUIDE.md). Their board-specific guides and clear explanations of the Candlelight → Katapult → Klipper workflow are an invaluable resource for the entire community.
 
 ---
 
@@ -298,6 +310,7 @@ Many thanks to all contributors to these projects.
 * **Katapult** bootloader — © Arksine
 * **Moonraker** Web API — © Arksine
 * Inspiration for UX and flows — **KIAUH** by th33xitus and community
+* **CAN bus setup documentation** — [https://canbus.esoterical.online](https://canbus.esoterical.online) community
 * **macro-builder** scripts and docs — © Contributors of this repository
 
 This project is released under **GNU General Public License v3.0 (GPL-3.0)**.

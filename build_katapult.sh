@@ -81,10 +81,19 @@ build_katapult_target() {
     local versioned_output="$(generate_versioned_filename "$BUILD_TYPE" "$name" "$date_stamp" "$git_hash")"
     local versioned_path="${OUT_DIR}/${versioned_output}"
     
-    # Remove existing fixed output and copy new binaries
+    # Remove existing fixed output and copy new binaries (katapult.bin)
     rm -f "$fixed_output"
     cp -f "out/katapult.bin" "$fixed_output" || fatal_error "Failed to copy fixed output"
     cp -f "out/katapult.bin" "$versioned_path" || fatal_error "Failed to copy versioned output"
+    
+    # Copy deployer.bin if present (used for firmware updates via Katapult)
+    local deployer_fixed="${OUT_DIR}/${out_fixed%.bin}_deployer.bin"
+    if [[ -f "out/deployer.bin" ]]; then
+        cp -f "out/deployer.bin" "$deployer_fixed" || log_warning "Failed to copy deployer.bin"
+        log_info "  Deployer: $(basename "$deployer_fixed")"
+    else
+        log_warning "deployer.bin not found in out/ — update TXT will reference missing binary"
+    fi
     
     # Create checksum
     create_checksum "$versioned_path"
@@ -134,11 +143,82 @@ main() {
     # Parse printer configuration for flash commands
     declare -A can_uuid_map usb_serial_map can_label_map usb_label_map
     parse_printer_config can_uuid_map usb_serial_map can_label_map usb_label_map
-    
-    # Generate summary
+
+    # Derive paths for the two instruction TXT files
+    local install_txt="${SYSTEM_DIR}/builder_katapult_install.txt"
+    local update_txt="${SYSTEM_DIR}/builder_katapult_update.txt"
+
+    # ── TXT 1: INSTALAR NUEVO (usa katapult.bin) ──────────────────────────────
+    local install_tmp
+    install_tmp="$(mktemp -t kata_install.XXXXXX)"
+    {
+        echo "================================================================"
+        echo "  KATAPULT — INSTRUCCIONES: INSTALAR NUEVO BOOTLOADER"
+        echo "  Binario: katapult.bin"
+        echo "  Generado: $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "================================================================"
+        echo
+        echo "BINARIOS GENERADOS:"
+        for section in "${sections[@]}"; do
+            local name="${builder_config[${section}.name]:-$section}"
+            local output_file="${builder_config[${section}.out]:-}"
+            echo "  ${name}: ${OUT_DIR}/${output_file}"
+        done
+        echo
+        echo "SECUENCIA DE COMANDOS:"
+        echo
+        for section in "${sections[@]}"; do
+            local name="${builder_config[${section}.name]:-$section}"
+            local output_file="${builder_config[${section}.out]:-}"
+            local flash_type="${builder_config[${section}.type]:-can}"
+            local flash_mode="${builder_config[${section}.flash_mode]:-ssh}"
+            local aliases="${builder_config[${section}.aliases]:-}"
+            local binary_path="${OUT_DIR}/${output_file}"
+            generate_flash_sequence "$name" "$binary_path" "$flash_type" "$flash_mode" \
+                "$aliases" can_uuid_map usb_serial_map "install"
+            echo
+        done
+    } > "$install_tmp"
+    cp -f "$install_tmp" "$install_txt"
+    rm -f "$install_tmp"
+
+    # ── TXT 2: ACTUALIZAR FIRMWARE EXISTENTE (usa deployer.bin) ───────────────
+    local update_tmp
+    update_tmp="$(mktemp -t kata_update.XXXXXX)"
+    {
+        echo "================================================================"
+        echo "  KATAPULT — INSTRUCCIONES: ACTUALIZAR FIRMWARE EXISTENTE"
+        echo "  Binario: deployer.bin"
+        echo "  Generado: $(date '+%Y-%m-%d %H:%M:%S')"
+        echo "================================================================"
+        echo
+        echo "BINARIOS GENERADOS:"
+        for section in "${sections[@]}"; do
+            local name="${builder_config[${section}.name]:-$section}"
+            local output_file="${builder_config[${section}.out]:-}"
+            echo "  ${name} (deployer): ${OUT_DIR}/${output_file%.bin}_deployer.bin"
+        done
+        echo
+        echo "SECUENCIA DE COMANDOS:"
+        echo
+        for section in "${sections[@]}"; do
+            local name="${builder_config[${section}.name]:-$section}"
+            local output_file="${builder_config[${section}.out]:-}"
+            local flash_type="${builder_config[${section}.type]:-can}"
+            local flash_mode="${builder_config[${section}.flash_mode]:-ssh}"
+            local aliases="${builder_config[${section}.aliases]:-}"
+            local deployer_path="${OUT_DIR}/${output_file%.bin}_deployer.bin"
+            generate_flash_sequence "$name" "$deployer_path" "$flash_type" "$flash_mode" \
+                "$aliases" can_uuid_map usb_serial_map "update"
+            echo
+        done
+    } > "$update_tmp"
+    cp -f "$update_tmp" "$update_txt"
+    rm -f "$update_tmp"
+
+    # ── Legacy summary (kept for backward compatibility with BUILDER_KATAPULT_SHOW) ──
     local summary_file
     summary_file="$(mktemp -t kata_summary.XXXXXX)"
-    
     {
         echo
         echo "=== KATAPULT BOOTLOADERS READY ==="
@@ -147,22 +227,10 @@ main() {
             local output_file="${builder_config[${section}.out]:-}"
             echo "${name}: ${OUT_DIR}/${output_file}"
         done
-        
         echo
-        echo "=== FLASH COMMANDS ==="
-        for section in "${sections[@]}"; do
-            local name="${builder_config[${section}.name]:-$section}"
-            local output_file="${builder_config[${section}.out]:-}"
-            local flash_type="${builder_config[${section}.type]:-can}"
-            local flash_mode="${builder_config[${section}.flash_mode]:-ssh}"
-            local aliases="${builder_config[${section}.aliases]:-}"
-            
-            local binary_path="${OUT_DIR}/${output_file}"
-            generate_flash_commands "$name" "$binary_path" "$flash_type" "$flash_mode" \
-                "$aliases" can_uuid_map usb_serial_map
-            echo
-        done
-        
+        echo "Ver instrucciones detalladas en:"
+        echo "  Instalar nuevo : $install_txt"
+        echo "  Actualizar     : $update_txt"
         echo
         echo "=== ARTIFACT CLEANUP (keeping last 10 per target) ==="
         for section in "${sections[@]}"; do
@@ -170,12 +238,12 @@ main() {
             cleanup_old_artifacts "$OUT_DIR" "katapult-${name}-*.bin" 10
         done
     } > "$summary_file"
-    
-    # Save summary
     cp -f "$summary_file" "$LOG_SUMMARY"
     rm -f "$summary_file"
-    
-    log_success "Build summary saved to: $LOG_SUMMARY"
+
+    log_success "Instrucciones de instalación guardadas en: $install_txt"
+    log_success "Instrucciones de actualización guardadas en: $update_txt"
+    log_success "Resumen guardado en: $LOG_SUMMARY"
     log_info "Use 'BUILDER_KATAPULT_SHOW' in UI to view commands"
 }
 

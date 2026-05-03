@@ -8,6 +8,8 @@ It drives **both** builders:
 
 Each builder reads only the sections that match its type.
 
+> **New to CAN bus?** Before diving into `builder.cfg`, read the [SETUP_GUIDE.md](SETUP_GUIDE.md) for a step-by-step walkthrough of the full Candlelight → Katapult → Klipper setup flow, including board-specific examples.
+
 ---
 
 ## 1) Location & Format
@@ -120,7 +122,7 @@ The builders don’t flash automatically; they **print** commands tailored to ea
 * For `type: can`
 
   * `ssh` mode:
-    `python3 ~/katapult/scripts/flash_can.py -i can0 -u <UUID> -f <bin>`
+    `python3 ~/katapult/scripts/flashtool.py -i can0 -u <UUID> -f <bin>`
   * `gcode_shell` mode (usable from UI macros):
     `RUN_SHELL_COMMAND CMD=FLASH_CAN PARAMS="-i can0 -u <UUID> -f <bin>"`
 
@@ -200,3 +202,13 @@ flash terminal: ssh
 
 * **Safety**
   The builders only compile and print commands; you choose when/how to flash.
+
+---
+
+## 10) Credits & External Resources
+
+The CAN bus setup workflow described in [SETUP_GUIDE.md](SETUP_GUIDE.md) (Candlelight → Katapult → Klipper, `deployer.bin` vs `katapult.bin`, board-specific configurations) is based on the community documentation at:
+
+> **[https://canbus.esoterical.online](https://canbus.esoterical.online)**
+
+Many thanks to the authors and contributors of that resource. For board-specific menuconfig settings not covered in this repository, that site is the authoritative reference.

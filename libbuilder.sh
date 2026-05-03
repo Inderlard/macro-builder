@@ -171,7 +171,7 @@ cleanup_old_artifacts() {
 ### === BUILDER.CFG PARSER === ###
 # Fills:
 #   - sections_arr: array with section names for given build_type ("klipper"/"katapult")
-#   - config_map:   assoc array with keys: "<SECTION>.name" | .config | .out | .type | .aliases | .flash_mode
+#   - config_map:   assoc array with keys: "<SECTION>.name" | .config | .out | .type | .aliases | .flash_mode | .rename_binary
 parse_builder_config() {
     local build_type="$1"
     local -n sections_arr="$2"
@@ -210,7 +210,7 @@ parse_builder_config() {
         value="$(string_trim "${line#*:}")"
 
         case "$key" in
-            name|config|out|type)
+            name|config|out|type|rename_binary)
                 config_map["${current_section}.${key}"]="$value"
                 ;;
             mcu_alias|mcu_alias*)
@@ -295,10 +295,154 @@ generate_versioned_filename() {
 
 ### === FLASH COMMAND GENERATION === ###
 
+# Generate a complete flash sequence (stop klipper → bootloader entry → flash → start klipper)
+# Parameters:
+#   $1  section_name
+#   $2  binary_path        — the .bin file to flash
+#   $3  flash_type         — can | usb | sd
+#   $4  flash_mode         — ssh | gcode_shell
+#   $5  aliases_str        — space-separated alias list
+#   $6  nameref: can_map
+#   $7  nameref: usb_map
+#   $8  action             — "install" | "update"
+#                            install → uses katapult.bin + bootloader-entry step
+#                            update  → uses deployer.bin, no bootloader-entry step
+generate_flash_sequence() {
+    local section_name="$1"
+    local binary_path="$2"
+    local flash_type="$3"
+    local flash_mode="$4"
+    local aliases_str="$5"
+    local -n _seq_can_map="$6"
+    local -n _seq_usb_map="$7"
+    local action="${8:-install}"
+
+    local mode_label="SSH"
+    [[ "$flash_mode" == "gcode_shell" ]] && mode_label="GCODE"
+
+    local aliases=()
+    if [[ -n "$aliases_str" ]]; then
+        IFS=' ' read -r -a aliases <<< "$aliases_str"
+    fi
+
+    if [[ "$action" == "install" ]]; then
+        printf '# [%s] — INSTALAR NUEVO BOOTLOADER KATAPULT (%s via %s)\n' \
+            "$section_name" "$mode_label" "${flash_type^^}"
+    else
+        printf '# [%s] — ACTUALIZAR FIRMWARE EXISTENTE (%s via %s)\n' \
+            "$section_name" "$mode_label" "${flash_type^^}"
+    fi
+
+    case "$flash_type" in
+        can)
+            if [[ ${#aliases[@]} -eq 0 ]]; then
+                printf '#   (Define at least one mcu_alias in builder.cfg)\n'
+                return
+            fi
+            for alias in "${aliases[@]}"; do
+                local alias_key
+                alias_key="$(string_to_lower "$alias")"
+                local uuid="${_seq_can_map[$alias_key]:-}"
+                local tag
+                tag="$(alias_to_tag "$alias")"
+
+                printf '\n# --- %s ---\n' "$alias"
+                printf 'sudo service klipper stop\n'
+
+                if [[ "$action" == "install" ]]; then
+                    # Bootloader entry: put MCU into DFU/Katapult mode via CAN reset
+                    if [[ -n "$uuid" ]]; then
+                        printf '# Entrar en modo bootloader (reset via Katapult):\n'
+                        printf 'python3 %s/katapult/scripts/flashtool.py -i can0 -u %s -r\n' \
+                            "$HOME_DIR" "$uuid"
+                    else
+                        printf '# Entrar en modo bootloader (reset via Katapult):\n'
+                        printf 'python3 %s/katapult/scripts/flashtool.py -i can0 -u {{%s_UUID}} -r\n' \
+                            "$HOME_DIR" "$tag"
+                    fi
+                fi
+
+                # Flash command
+                if [[ -n "$uuid" ]]; then
+                    generate_can_flash_command "$flash_mode" "$uuid" "$binary_path" "$alias"
+                    printf '\n'
+                else
+                    printf '#   alias "%s": UUID not found in printer.cfg\n' "$alias"
+                    if [[ "$flash_mode" == "gcode_shell" ]]; then
+                        printf 'RUN_SHELL_COMMAND CMD=FLASH_CAN PARAMS="-i can0 -u {{%s_UUID}} -f %s"\n' \
+                            "$tag" "$binary_path"
+                    else
+                        printf 'python3 %s/klipper/scripts/canbus_query.py can0\n' "$HOME_DIR"
+                        printf 'python3 %s/katapult/scripts/flashtool.py -i can0 -u {{%s_UUID}} -f %s\n' \
+                            "$HOME_DIR" "$tag" "$binary_path"
+                    fi
+                fi
+
+                printf 'sudo service klipper start\n'
+            done
+            ;;
+        usb)
+            if [[ ${#aliases[@]} -eq 0 ]]; then
+                printf '#   (Define mcu_alias: main or the exact alias)\n'
+                return
+            fi
+            for alias in "${aliases[@]}"; do
+                local alias_key
+                alias_key="$(string_to_lower "$alias")"
+                local device="${_seq_usb_map[$alias_key]:-}"
+                local tag
+                tag="$(alias_to_tag "$alias")"
+                local flasher_script
+                flasher_script="$(_pick_usb_flasher)"
+
+                printf '\n# --- %s ---\n' "$alias"
+                printf 'sudo service klipper stop\n'
+
+                if [[ "$action" == "install" ]]; then
+                    printf '# Entrar en modo DFU (mantén BOOT pulsado y pulsa RESET, o usa el comando de reset):\n'
+                    printf '# dfu-util --list   # verificar que el dispositivo aparece en modo DFU\n'
+                fi
+
+                # Flash command
+                if [[ -n "$device" ]]; then
+                    generate_usb_flash_command "$flash_mode" "$device" "$binary_path" "$alias"
+                    printf '\n'
+                else
+                    printf '#   alias "%s": serial not found in printer.cfg\n' "$alias"
+                    if [[ "$flash_mode" == "gcode_shell" ]]; then
+                        printf 'RUN_SHELL_COMMAND CMD=FLASH_USB PARAMS="-d /dev/serial/by-id/{{%s_SERIAL}} -f %s"    # %s\n' \
+                            "$tag" "$binary_path" "$alias"
+                    else
+                        printf 'python3 %s/katapult/scripts/%s -d /dev/serial/by-id/{{%s_SERIAL}} -f %s    # %s\n' \
+                            "$HOME_DIR" "$flasher_script" "$tag" "$binary_path" "$alias"
+                    fi
+                fi
+
+                printf 'sudo service klipper start\n'
+            done
+            ;;
+        sd)
+            printf 'sudo service klipper stop\n'
+            if [[ "$action" == "install" ]]; then
+                printf '# 1) Copia %s a la RAÍZ de una microSD FAT32.\n' "$binary_path"
+                printf '# 2) Inserta la microSD en la placa y haz power-cycle.\n'
+                printf '# 3) Muchas placas renombran el archivo a .CUR tras flashear.\n'
+            else
+                printf '# 1) Copia %s a la RAÍZ de una microSD FAT32.\n' "$binary_path"
+                printf '# 2) Inserta la microSD en la placa y haz power-cycle.\n'
+            fi
+            printf 'sudo service klipper start\n'
+            ;;
+        *)
+            printf '# [%s] tipo de flash desconocido: %s\n' "$section_name" "$flash_type"
+            ;;
+    esac
+}
+
 # Pick proper Katapult USB flasher
 _pick_usb_flasher() {
-    if [[ -f "${HOME_DIR}/katapult/scripts/flash_usb.py" ]]; then
-        printf 'flash_usb.py'
+    if [[ -f "${HOME_DIR}/katapult/scripts/flashtool.py" ]]; then
+        printf 'flashtool.py'
     else
         printf 'flashtool.py'
     fi
@@ -310,7 +454,7 @@ generate_can_flash_command() {
     if [[ "$mode" == "gcode_shell" ]]; then
         printf 'RUN_SHELL_COMMAND CMD=FLASH_CAN PARAMS="-i can0 -u %s -f %s"    # %s' "$uuid" "$bin_file" "$label"
     else
-        printf 'python3 %s/katapult/scripts/flash_can.py -i can0 -u %s -f %s    # %s' "$HOME_DIR" "$uuid" "$bin_file" "$label"
+        printf 'python3 %s/katapult/scripts/flashtool.py -i can0 -u %s -f %s    # %s' "$HOME_DIR" "$uuid" "$bin_file" "$label"
     fi
 }
 
@@ -364,7 +508,7 @@ generate_flash_commands() {
                             printf 'RUN_SHELL_COMMAND CMD=FLASH_CAN PARAMS="-i can0 -u {{%s_UUID}} -f %s"\n' "$tag" "$binary_path"
                         else
                             printf 'python3 %s/klipper/scripts/canbus_query.py can0\n' "$HOME_DIR"
-                            printf 'python3 %s/katapult/scripts/flash_can.py -i can0 -u {{%s_UUID}} -f %s\n' "$HOME_DIR" "$tag" "$binary_path"
+                            printf 'python3 %s/katapult/scripts/flashtool.py -i can0 -u {{%s_UUID}} -f %s\n' "$HOME_DIR" "$tag" "$binary_path"
                         fi
                     fi
                 done
