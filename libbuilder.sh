@@ -358,11 +358,11 @@ generate_flash_sequence() {
         printf 'sudo service klipper stop\n'
         printf '# Put the board into Bootloader/DFU mode:\n'
         printf '#   Hold BOOT button and press RESET (or use the board reset method).\n'
-        printf '#   Verify the device appears: dfu-util --list\n'
+        printf '#   Verify the device appears: Via ssh: "dfu-util --list" or via gcode macro "DFU_LIST"\n'
         if [[ "$new_flash_mode" == "gcode_shell" ]]; then
-            printf '_FLASH_USB_BOARD SERIAL=<YOUR_SERIAL_ID> BIN=%s\n' "$binary_path"
+            printf '_FLASH_USB_BOARD SERIAL={{YOUR_SERIAL_ID}} BIN=%s\n' "$binary_path"
         else
-            printf 'python3 %s/katapult/scripts/flashtool.py -d /dev/serial/by-id/<YOUR_SERIAL_ID> -f %s\n' \
+            printf 'python3 %s/katapult/scripts/flashtool.py -d /dev/serial/by-id/{{YOUR_SERIAL_ID}} -f %s\n' \
                 "$HOME_DIR" "$binary_path"
         fi
         printf 'sudo service klipper start\n'
